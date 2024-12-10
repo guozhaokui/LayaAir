@@ -1,6 +1,5 @@
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
-import { IK_Pose1 } from "./IK_Pose1";
 
 // 定义关节接口
 export interface IK_IJoint {
@@ -28,10 +27,9 @@ export class IK_Joint implements IK_IJoint {
     private _eulerDirty = false;
     angleLimit: IK_AngleLimit = null;  //null就是不限制，-PI到PI
     type: "revolute" | "prismatic";
-    private _pos = new Vector3(0,0,1);
     //世界空间的(system空间的)
-    public position: Vector3;
-    public rotation: Vector3;
+    position: Vector3;
+    rotation: Vector3;
     length = 1;
 
     constructor() {

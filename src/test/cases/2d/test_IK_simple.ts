@@ -21,6 +21,7 @@ import { Quaternion } from "laya/maths/Quaternion";
 import { Vector3 } from "laya/maths/Vector3";
 import { Mesh } from "laya/d3/resource/models/Mesh";
 import { IK_Target } from "laya/IK/IK_Pose1";
+import { rotationTo } from "laya/IK/IK_Utils";
 
 function createMeshSprite(mesh:Mesh,color:Color){
     let sp3 = new Sprite3D();
@@ -46,7 +47,12 @@ class IKDemo {
         this.scene = scene;
         this.camera=camera;
         this.createIKChain();
-        this.createTarget();
+        this.target = createMeshSprite(PrimitiveMesh.createSphere(0.2),new Color(1,0,0,1));
+        scene.addChild(this.target);
+
+        // let O = createMeshSprite(PrimitiveMesh.createSphere(0.2),new Color(0,0,0,1));
+        // scene.addChild(O);
+
         Laya.timer.frameLoop(1, this, this.onUpdate);
     }
 
@@ -57,56 +63,58 @@ class IKDemo {
         const numJoints = 5;
         const jointLength = 1;
 
+        let r1 = new Quaternion();
+        rotationTo(new Vector3(0,1,0), new Vector3(0,0,1), r1);
         for (let i = 0; i < numJoints; i++) {
             const position = new Vector3(0, i * jointLength, 0);
             const joint = new IK_Joint();
-            this.chain.addJoint(joint, position);
+            this.chain.addJoint(joint, position, true);
 
             const cylinderJoint = createMeshSprite(PrimitiveMesh.createCylinder(0.1, jointLength),new Color(1,1,1,1));
-            cylinderJoint.transform.position = position;
-            this.scene.addChild(cylinderJoint);
-            this.joints.push(cylinderJoint);
+            cylinderJoint.transform.localRotation = r1;
+            cylinderJoint.transform.localPosition = new Vector3(0,0,jointLength*0.5);
+            let sp = new Sprite3D();
+            sp.addChild(cylinderJoint);
+            let b = createMeshSprite(PrimitiveMesh.createSphere(0.2),new Color(0,1,0,1));
+            sp.addChild(b);
+            sp.transform.position = position;
+            this.scene.addChild(sp);
+            this.joints.push(sp);
         }
         this.chain.setEndEffector(numJoints-1)
+        this.joints[numJoints-1].active=false;  //最后一个是个球
 
         this.solver = new IK_CCDSolver();
-    }
-
-    private createTarget(): void {
-        let target = this.target = new Sprite3D();
-        let mf = target.addComponent(MeshFilter);
-        mf.sharedMesh = PrimitiveMesh.createSphere(0.2);
-        let r = target.addComponent(MeshRenderer)
-        let mtl = new BlinnPhongMaterial();
-        r.material = mtl;
-        mtl.albedoColor = new Color(1, 0, 0, 1);
-        this.scene.addChild(target);
-        target.transform.position = new Vector3(2, 3, 0);
     }
 
     private onUpdate(): void {
         // Move target
         const time = Laya.timer.currTimer * 0.001;
-        this.target.transform.position.setValue(
+        let targetPos = this.target.transform.position;
+        targetPos.setValue(
             Math.sin(time) * 2,
-            3 + Math.cos(time),
-            Math.cos(time * 0.5) * 2
+            2 ,
+            Math.cos(time * 0.5) * 3
         );
         this.targetPose.pos = this.target.transform.position.clone();
+        //DEBUG
+        //this.targetPose.pos = new Vector3(0,2,-3);
+        //targetPos.setValue(3,3,0)
+
+        this.target.transform.position = targetPos;
 
         // Solve IK
         this.solver.solve(this.chain, this.targetPose);
 
-        // // Update joint visuals
-        // for (let i = 0; i < this.chain.joints.length; i++) {
-        //     const joint = this.chain.joints[i];
-        //     const cylinderJoint = this.joints[i];
+        // Update joint visuals
+        for (let i = 0; i < this.chain.joints.length; i++) {
+            const joint = this.chain.joints[i];
+            const cylinderJoint = this.joints[i];
 
-        //     cylinderJoint.transform.position = joint.position;
-        //     cylinderJoint.transform.rotation = joint.rotation;
-        // }
+            cylinderJoint.transform.position = joint.position;
+            cylinderJoint.transform.rotation = joint.getRotaionQuat();
+        }
     }
-
 }
 
 async function test() {
@@ -120,7 +128,7 @@ async function test() {
 
     // 创建相机
     let camera = scene.addChild(new Camera(0, 0.1, 100)) as Camera;
-    camera.transform.translate(new Vector3(0, 3, 25));
+    camera.transform.translate(new Vector3(-3, 3, 5));
     camera.transform.rotate(new Vector3(-15, 0, 0), true, false);
 
     // 创建平行光

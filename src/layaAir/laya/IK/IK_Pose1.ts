@@ -23,6 +23,7 @@ export class IK_Pose1 {
 
     set pos(p: Vector3) {
         //TODO
+        p.cloneTo(this._pos);
         this._poseChanged = true;
     }
 

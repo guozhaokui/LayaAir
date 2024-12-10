@@ -28,6 +28,10 @@ export class IK_CCDSolver implements IK_ISolver {
                 const joint = chain.joints[i];
 
                 endEffector.position.vsub(joint.position, toEndEffector);
+                if(toEndEffector.length()<1e-5) 
+                    //endeffector和joint重合的情况
+                    continue;
+
                 toEndEffector.normalize();
 
                 target.pos.vsub(joint.position,toTarget);
