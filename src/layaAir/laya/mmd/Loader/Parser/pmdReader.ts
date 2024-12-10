@@ -57,7 +57,8 @@ export class PmdReader {
                 displayFrames,
                 rigidBodies: [],
                 joints: [],
-                softBodies: []
+                softBodies: [],
+                iks
             };
 
             return pmxObject;
@@ -86,7 +87,8 @@ export class PmdReader {
                 displayFrames,
                 rigidBodies: [],
                 joints: [],
-                softBodies: []
+                softBodies: [],
+                iks
             };
 
             return pmxObject;
@@ -113,7 +115,8 @@ export class PmdReader {
             displayFrames,
             rigidBodies: rigidBodies as PmxObject.RigidBody[],
             joints,
-            softBodies: []
+            softBodies: [],
+            iks
         };
 
         return pmxObject;

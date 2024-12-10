@@ -22,7 +22,7 @@ export class PmdLoader implements ILogger, IResourceLoader {
         throw new Error("Method not implemented.");
     }
 
-    load(task: ILoadTask) {
+    async load(task: ILoadTask) {
         let url = AssetDb.inst.getSubAssetURL(task.url, task.uuid, null, "pmd");
         return task.loader.fetch(url, "arraybuffer", task.progress.createCallback(), task.options).then(data => {
             if (!data)
@@ -31,8 +31,8 @@ export class PmdLoader implements ILogger, IResourceLoader {
         });
     }    
 
-    _parse( task:ILoadTask , data:ArrayBuffer) : Resource{
-        let ret = PmdReader.ParseAsync(data, this);
+    async _parse( task:ILoadTask , data:ArrayBuffer) : Promise<Resource>{
+        let ret = await PmdReader.ParseAsync(data, this);
         return null;
     }
         

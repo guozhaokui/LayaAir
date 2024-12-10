@@ -128,7 +128,7 @@ export class PmxReader {
             displayFrames,
             rigidBodies,
             joints,
-            softBodies
+            softBodies,
         };
 
         return pmxObject;

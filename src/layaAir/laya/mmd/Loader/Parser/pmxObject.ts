@@ -1,4 +1,5 @@
 import type { Vec2, Vec3, Vec4 } from "./mmdTypes";
+import { PmdObject } from "./pmdObject";
 
 /**
  * PmxObject is a type that represents the data of a model in the PMX format (PMX 2.1)
@@ -58,6 +59,8 @@ export type PmxObject = Readonly<{
      * Soft body information of the model
      */
     softBodies: readonly PmxObject.SoftBody[]; // pmx 2.1 spec (which is not supported by mmd)
+
+    iks?:readonly PmdObject.Ik[];
 }>;
 
 export namespace PmxObject {
