@@ -4,7 +4,7 @@ import { Vector3 } from "../maths/Vector3";
 // 定义关节接口
 export interface IK_IJoint {
     position: Vector3;
-    rotation: Vector3;
+    rotationEuler: Vector3;
     length: number;
     angleLimit: IK_AngleLimit;
     type: "revolute" | "prismatic";    //旋转，平移
@@ -29,7 +29,7 @@ export class IK_Joint implements IK_IJoint {
     type: "revolute" | "prismatic";
     //世界空间的(system空间的)
     position: Vector3;
-    rotation: Vector3;
+    rotationEuler: Vector3;
     length = 1;
 
     constructor() {
@@ -56,7 +56,7 @@ export class IK_Joint implements IK_IJoint {
     // 设置旋转（欧拉角接口）
     setEulerAngles(angels: Vector3) {
         Quaternion.createFromYawPitchRoll(angels.y, angels.x, angels.z, this._rotationQuat);
-        angels.cloneTo(this.rotation)
+        angels.cloneTo(this.rotationEuler)
         this._eulerDirty = false;
     }
 
@@ -66,7 +66,7 @@ export class IK_Joint implements IK_IJoint {
             //TODO
             this._eulerDirty = false;
         }
-        this.rotation.cloneTo(ang);
+        this.rotationEuler.cloneTo(ang);
         return ang;
     }
 
