@@ -37,12 +37,12 @@ export class IK_CCDSolver implements IK_ISolver {
                 target.pos.vsub(joint.position,toTarget);
                 toTarget.normalize();
 
-                const rotation = new Quaternion();
+                let rotation = new Quaternion();
                 rotationTo(toEndEffector, toTarget, rotation);
-
-                this.updateChainDir(chain, i, rotation);
                 // Apply angle limits TODO
-                this.applyAngleLimits(joint);
+                rotation = this.applyAngleLimits(joint,rotation);
+                //更新朝向
+                chain.rotateJoint(i,rotation);
             }
 
             if (Vector3.distanceSquared(endEffector.position, target.pos) < this.epsilon * this.epsilon) {
@@ -53,19 +53,26 @@ export class IK_CCDSolver implements IK_ISolver {
         }
     }
 
-    private applyAngleLimits(joint: IK_Joint): void {
-        // const euler = new Vector3();
-        // joint.rotation.getYawPitchRoll(euler);
-
-        // euler.x = Math.max(Math.min(euler.x, joint.angleLimit.max.x), joint.angleLimit.min.x);
-        // euler.y = Math.max(Math.min(euler.y, joint.angleLimit.max.y), joint.angleLimit.min.y);
-        // euler.z = Math.max(Math.min(euler.z, joint.angleLimit.max.z), joint.angleLimit.min.z);
-
-        // Quaternion.createFromYawPitchRoll(euler.x, euler.y, euler.z, joint.rotation);
-    }
-
-    //更新朝向
-    private updateChainDir(chain: IK_Chain, startIndex: number, deltaQuat:Quaternion){        
-        chain.updateDir(startIndex,deltaQuat);
+    /**
+     * 根据joint来限制rot，返回被限制后的rot
+     * @param joint 
+     * @param rot 
+     * @returns 
+     */
+    private applyAngleLimits(joint: IK_Joint, rot:Quaternion) {
+        const euler = new Vector3();
+        if(joint.angleLimit){
+            let min = joint.angleLimit.min;
+            let max = joint.angleLimit.max;
+            //注意laya引擎这里得到的euler对应的是x:yaw,y:pitch,z:roll,所以相当于x和y是交换的
+            rot.getYawPitchRoll(euler)
+    
+            euler.x = Math.max(Math.min(euler.x, max.y), min.y);
+            euler.y = Math.max(Math.min(euler.y, max.x), min.x);
+            euler.z = Math.max(Math.min(euler.z, max.z), min.z);
+    
+            Quaternion.createFromYawPitchRoll(euler.x, euler.y, euler.z, rot);
+        }
+        return rot;
     }
 }

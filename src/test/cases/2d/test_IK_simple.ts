@@ -14,7 +14,7 @@ import { Stage } from "laya/display/Stage";
 import { IK_CCDSolver } from "laya/IK/CCD/IK_CCDSolver";
 import { IK_Chain } from "laya/IK/IK_Chain";
 import { IK_ISolver } from "laya/IK/IK_ISolver";
-import { IK_Joint } from "laya/IK/IK_Joint";
+import { IK_AngleLimit, IK_Joint } from "laya/IK/IK_Joint";
 import { Color } from "laya/maths/Color";
 import { Matrix4x4 } from "laya/maths/Matrix4x4";
 import { Quaternion } from "laya/maths/Quaternion";
@@ -68,7 +68,12 @@ class IKDemo {
         for (let i = 0; i < numJoints; i++) {
             const position = new Vector3(0, i * jointLength, 0);
             const joint = new IK_Joint();
+            joint.angleLimit = new IK_AngleLimit( new Vector3(-Math.PI, 0,0), new Vector3(Math.PI, 0,0))
             this.chain.addJoint(joint, position, true);
+            if(i>=2){
+                joint.angleLimit.min.z=-Math.PI;
+                joint.angleLimit.max.z=Math.PI;
+            }
 
             const cylinderJoint = createMeshSprite(PrimitiveMesh.createCylinder(0.1, jointLength),new Color(1,1,1,1));
             cylinderJoint.transform.localRotation = r1;

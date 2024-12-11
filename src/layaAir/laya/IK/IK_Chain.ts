@@ -99,9 +99,9 @@ export class IK_Chain extends IK_Pose1 {
     //     this._dirtyIndex=joints.length;
     // }
 
-    updateDir(startIndex: number, deltaQuat: Quaternion) {
+    rotateJoint(jointId: number, deltaQuat: Quaternion) {
         let joints = this.joints;
-        for (let i = startIndex; i < joints.length - 1; i++) {
+        for (let i = jointId; i < joints.length - 1; i++) {
             const current = joints[i];
 
             //先更新自己的朝向
