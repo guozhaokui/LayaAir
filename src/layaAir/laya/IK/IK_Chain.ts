@@ -7,16 +7,19 @@ import { IK_Pose1 } from "./IK_Pose1";
 import { rotationTo } from "./IK_Utils";
 
 let Z = new Vector3(0, 0, 1);
+let dpos = new Vector3();
 
 /**
  * 从IK_pose1可以方便的绑定到某个骨骼上，随着动画动
  */
 export class IK_Chain extends IK_Pose1 {
     name=''
+    //顺序是从根到末端
     joints: IK_Joint[];
     //先只支持单个末端执行器
     end_effector: IK_EndEffector;
-    private _origin = new Vector3();
+    //构造的时候的位置，以后的位置都是相对这个做偏移
+    private _lastPos = new Vector3();
     //设置世界矩阵或者修改某个joint的时候更新。0表示需要全部更新
     //private _dirtyIndex = 0;
     userData:any=null;
@@ -40,7 +43,7 @@ export class IK_Chain extends IK_Pose1 {
         let lastJoint = this.joints[this.joints.length - 1];
         joint.position = new Vector3();
         if (!lastJoint) {
-            this._origin = pos.clone();
+            this._lastPos = pos.clone();
             joint.rotationQuat = new Quaternion();  //第一个固定为单位旋转
             pos.cloneTo(joint.position);
         } else {
@@ -48,19 +51,18 @@ export class IK_Chain extends IK_Pose1 {
                 pos.cloneTo(joint.position);
                 //先转成本地空间
                 let localPos = new Vector3();
-                pos.vsub(this._origin, localPos);
+                //与上一个joint的世界空间对比。这时候上一个joint的position已经计算了。
+                pos.vsub(lastJoint.position, localPos);
                 pos = localPos;
             } else {
                 //累加
                 lastJoint.position.vadd(pos, joint.position);
             }
-            let dpos = new Vector3();
-            pos.vsub(lastJoint.position, dpos);
-            lastJoint.length = dpos.length();
+            lastJoint.length = pos.length();
             //计算朝向
-            dpos.normalize();
+            pos.normalize();
             let quat = lastJoint.rotationQuat;
-            rotationTo(Z, dpos, quat);
+            rotationTo(Z, pos, quat);
             lastJoint.rotationQuat = quat;
         }
         this.joints.push(joint);
@@ -89,9 +91,19 @@ export class IK_Chain extends IK_Pose1 {
     enable(b: boolean) {
     }
 
+    /**
+     * 设置根节点的位置
+     * @param pos 
+     */
     setWorldPos(pos: Vector3) {
-        pos.cloneTo(this._origin);
-        //this._dirtyIndex=0;
+        pos.vsub(this._lastPos,dpos);
+        //更新所有节点的位置
+        for(let joint of this.joints){
+            joint.position.vadd(dpos,joint.position);
+        }
+        //为了避免误差，第一个直接设置。这样后续的即使有误差，也会被solve的过程中修正（长度固定）
+        this.joints[0].position.setValue(pos.x, pos.y,pos.z);
+        this._lastPos.setValue(pos.x, pos.y, pos.z);
     }
 
     //从某个joint开始旋转，会调整每个joint的位置

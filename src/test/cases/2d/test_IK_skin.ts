@@ -65,11 +65,11 @@ class IKDemo {
         const time = Laya.timer.currTimer * 0.001;
         let targetPos = this.target.transform.position;
         targetPos.setValue(
-            Math.sin(time) * 4,
+            Math.sin(time) * 4+10,
             4 ,
-            Math.cos(time * 0.5) * 4
+            Math.cos(time * 0.5) * 4+10
         );
-        ikcomp.setTarget('ttt',new IK_Target(targetPos));
+        ikcomp && ikcomp.setTarget('ttt',new IK_Target(targetPos));
         this.target.transform.position = targetPos;
 
 
@@ -111,8 +111,8 @@ async function test() {
 
     // 创建相机
     let camera = scene.addChild(new Camera(0, 0.1, 100)) as Camera;
-    camera.transform.translate(new Vector3(-13, 0, 25));
-    camera.transform.rotate(new Vector3(25, 0, 0), true, false);
+    camera.transform.translate(new Vector3(0, 0, 25));
+    //camera.transform.rotate(new Vector3(25, 0, 0), true, false);
 
     // 创建平行光
     let directlightSprite = new Sprite3D();
@@ -131,15 +131,17 @@ async function test() {
         let skinSp3:Sprite3D = r1.create() as Sprite3D;
         scene.addChild(skinSp3);
 
-        let sss = r1.create() as Sprite3D;
-        scene.addChild(sss);
-        sss.transform.position=new Vector3(10,0,10);
+        skinSp3.transform.position = new Vector3(10,0,10);
+
+        let posNode = createMeshSprite(PrimitiveMesh.createBox(1,1,1),new Color(1,1,1,1));
+        posNode.transform.position = skinSp3.transform.position;
+        scene.addChild(posNode)
 
         //对于导入的gltf，动画是加在根节点上的
         let anim = skinSp3.getComponent(Animator)
         ikcomp = skinSp3.addComponent(IK_Comp)
 
-        let chain = ikcomp.addChainByBoneName('Bone.004',5,true);
+        let chain = ikcomp.addChainByBoneName('Bone.004',3,true);
         chain.name='ttt';
         ikcomp.setTarget('ttt', new IK_Target(new Vector3(10,10,10)));        
 

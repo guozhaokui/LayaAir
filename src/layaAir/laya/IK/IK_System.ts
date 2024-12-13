@@ -15,6 +15,7 @@ import { rotationTo } from "./IK_Utils";
 
 interface IK_ChainUserData{
     target:IK_Target;
+    //顺序是从根到末端
     bones:Sprite3D[];
     rotOffs:Quaternion[];
     debugMod?:Sprite3D[];
@@ -251,11 +252,15 @@ export class IK_System{
                 continue;
             if(!udata.target)
                 continue;
+            let bones = udata.bones;
+            if(!bones)
+                continue;
+            let rootPos = bones[0].transform.position;
+            chain.setWorldPos(rootPos);
             this.solve(chain,udata.target);
             //应用ik结果
             //this._applyChain(chain,udata.bones);
             //要求joints和bones的顺序是一致的
-            let bones = udata.bones;
             let rotOffs = udata.rotOffs;
             for(let i=0, n=chain.joints.length; i<n; i++){
                 let joint = chain.joints[i];

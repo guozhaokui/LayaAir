@@ -21,7 +21,7 @@ export class IK_Comp extends Component {
     protected _onAdded(): void {
         let ik = this._ik_sys;
         ik.setRoot(this.owner as Sprite3D);
-        ik.showDbg = false;
+        ik.showDbg = true;
     }
 
     protected _onAwake(): void {
