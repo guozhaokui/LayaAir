@@ -13,6 +13,7 @@ import { IK_Chain } from "./IK_Chain";
 import { IK_ISolver } from "./IK_ISolver";
 import { IK_Joint } from "./IK_Joint";
 import { IK_Pose1, IK_Target } from "./IK_Pose1";
+import { rotationTo } from "./IK_Utils";
 
 interface IK_ChainUserData{
     target:IK_Target;
@@ -156,6 +157,18 @@ export class IK_System{
             //DEBUG
             dbgMod.push(this._addMeshSprite(0.2,new Color(1,1,1,1),new Vector3()));
             //
+
+            //旋转偏移：ik默认的骨骼朝向是(0,0,1),因此这里先要找出实际z的朝向，作为一个旋转偏移
+            if(chain.joints.length>1){
+                let curBoneZ = new Vector3(wmat[8],wmat[9],wmat[10]);
+                let rotoff = new Quaternion();
+                let lastJointZ = new Vector3();
+                let lastJoint = chain.joints[chain.joints.length-2];
+                gpos.vsub(lastJoint.position,lastJointZ);
+                lastJointZ.normalize();
+                rotationTo(lastJointZ,curBoneZ,rotoff);
+                rotOffs.push(rotoff);
+            }
         }
         if(isEndEffector){
             chain.setEndEffector(length-1);
@@ -222,12 +235,6 @@ export class IK_System{
      * @param bones 
      */
     private _applyChain(chain:IK_Chain, bones:Sprite3D[]){
-        for(let i=0, n=chain.joints.length; i<n; i++){
-            let joint = chain.joints[i];
-            let bone = bones[i];
-            bone.transform.position = joint.position;
-            bone.transform.rotation = joint.rotationQuat;
-        }
     }
 
     onUpdate(){
@@ -239,7 +246,26 @@ export class IK_System{
                 continue;
             this.solver.solve(chain,udata.target);
             //应用ik结果
-            this._applyChain(chain,udata.bones);
+            //this._applyChain(chain,udata.bones);
+            //要求joints和bones的顺序是一致的
+            let bones = udata.bones;
+            let rotOffs = udata.rotOffs;
+            for(let i=0, n=chain.joints.length; i<n; i++){
+                let joint = chain.joints[i];
+                let bone = bones[i];
+                //bone.transform.position = joint.position;
+                let rot = joint.rotationQuat;
+                let rotOff = rotOffs[i];
+                if(rotOff){
+                    let r = bone.transform.rotation;
+                    Quaternion.multiply(rot,rotOff,r);
+                    bone.transform.rotation = r;
+                }else{
+                    //bone.transform.rotation = rot;
+                }
+            }
+    
+
             //DEBUG
             for(let n=chain.joints.length,i=n-1; i>=0; i--){
                 let joint = chain.joints[i];

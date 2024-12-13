@@ -37,9 +37,9 @@ export class IK_Comp extends Component{
         let ik = this._ik_sys;
         const time = Laya.timer.currTimer * 0.001;
         let vec3 = new Vector3(
-            Math.sin(time) * 12,
-            52 ,
-            Math.cos(time * 0.5) * 13
+            Math.sin(time) * 6,
+            6 ,
+            Math.cos(time * 0.5) * 6
         );
 
         ik.setTarget('ttt', new IK_Target(vec3))

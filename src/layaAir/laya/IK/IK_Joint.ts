@@ -42,7 +42,7 @@ export class IK_Joint implements IK_IJoint {
         // 实现旋转逻辑，考虑角度限制
     }
 
-    // 设置旋转（四元数接口）
+    // 设置旋转（四元数接口）世界空间
     set rotationQuat(q: Quaternion) {
         q.normalize(this._rotationQuat);
     }
