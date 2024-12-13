@@ -2,17 +2,15 @@ import { BlinnPhongMaterial } from "../d3/core/material/BlinnPhongMaterial";
 import { MeshFilter } from "../d3/core/MeshFilter";
 import { MeshRenderer } from "../d3/core/MeshRenderer";
 import { Sprite3D } from "../d3/core/Sprite3D";
-import { Mesh } from "../d3/resource/models/Mesh";
 import { PrimitiveMesh } from "../d3/resource/models/PrimitiveMesh";
 import { Color } from "../maths/Color";
-import { Matrix4x4 } from "../maths/Matrix4x4";
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
 import { IK_CCDSolver } from "./CCD/IK_CCDSolver";
 import { IK_Chain } from "./IK_Chain";
 import { IK_ISolver } from "./IK_ISolver";
 import { IK_Joint } from "./IK_Joint";
-import { IK_Pose1, IK_Target } from "./IK_Pose1";
+import { IK_Target } from "./IK_Pose1";
 import { rotationTo } from "./IK_Utils";
 
 interface IK_ChainUserData{
@@ -27,6 +25,7 @@ export class IK_System{
     private solver: IK_ISolver;
     private chains: IK_Chain[] = [];
     private rootSprite:Sprite3D = null;
+    private _showDbg = false;
 
     constructor() {
         this.solver = new IK_CCDSolver();
@@ -36,12 +35,29 @@ export class IK_System{
         this.rootSprite=r;
     }
 
-    setSolver(){
-
+    setSolver(solver:"CCD"){
+        switch(solver){
+            default:
+                this.solver = new IK_CCDSolver();
+                break;
+        }
     }
 
     onPoseChange(): void {
         //TODO 
+    }
+
+    set showDbg(b:boolean){
+        this._showDbg=b;
+        if(!b){
+            for(let chain of this.chains){
+                chain.userData.debugMod = null;
+            }
+        }
+    }
+
+    get showDbg(){
+        return this._showDbg;
     }
 
     /**
@@ -49,7 +65,6 @@ export class IK_System{
      * @param chain 
      */
     addChain(chain: IK_Chain) {
-
     }
 
     private _getChildByID(sp:Sprite3D, id:number):Sprite3D|null{
@@ -128,6 +143,24 @@ export class IK_System{
         return ret;
     }
 
+    private updateDebugModel(){
+        for(let chain of this.chains){
+            let dbgs = chain.userData.debugMod;
+            if(!dbgs){
+                dbgs = chain.userData.debugMod=[];
+            }
+            for(let n=chain.joints.length,i=n-1; i>=0; i--){
+                let joint = chain.joints[i];
+                let mod = dbgs[i];
+                if(!mod){
+                    mod = this._addMeshSprite(0.2,new Color(1,1,1,1),new Vector3());
+                    dbgs.push(mod);
+                }
+                mod.transform.position = joint.position;
+            }    
+        }
+    }
+
     addChainByBoneName(name:string, length:number, isEndEffector=true):IK_Chain{
         let bones = this.getBoneChain(name,length);
         if(bones.length!=length){
@@ -139,9 +172,6 @@ export class IK_System{
         chain.userData=userData;
         let rotOffs = userData.rotOffs;
         let jointBones = userData.bones;    //新建一个是为了保证顺序与joint一致
-        //DEBUG
-        let dbgMod:Sprite3D[] = userData.debugMod= [];
-        //
 
         //创建chain
         //确定对应关系
@@ -154,9 +184,6 @@ export class IK_System{
             let gpos = new Vector3(wmat[12],wmat[13],wmat[14]);
             //joint.angleLimit = new IK_AngleLimit( new Vector3(-Math.PI, 0,0), new Vector3(Math.PI, 0,0))
             chain.addJoint(joint, gpos, true);
-            //DEBUG
-            dbgMod.push(this._addMeshSprite(0.2,new Color(1,1,1,1),new Vector3()));
-            //
 
             //旋转偏移：ik默认的骨骼朝向是(0,0,1),因此这里先要找出实际z的朝向，作为一个旋转偏移
             if(chain.joints.length>1){
@@ -177,16 +204,10 @@ export class IK_System{
         return chain;
     }
 
-    appendEndEffector(chainIndex: number, pos: Vector3, isWorldSpace = false) {
+    appendEndEffector(chainIndex: number, pos: Vector3, isWorldSpace = false) {        
         if (chainIndex >= 0 && chainIndex < this.chains.length) {
             const chain = this.chains[chainIndex];
-            if (isWorldSpace) {
-                const localPos = this.worldToLocal(pos);
-                //const localDir = this.worldToLocalRotation(dir);
-                chain.setEndEffector(localPos);
-            } else {
-                chain.setEndEffector(pos);
-            }
+            chain.appendEndEffector(pos,isWorldSpace);
         }
     }
 
@@ -206,11 +227,6 @@ export class IK_System{
         (chain.userData as IK_ChainUserData).target = target;
     }
 
-    private worldToLocal(worldPos: Vector3): Vector3 {
-        // 实现世界坐标到局部坐标的转换
-        return null;
-    }
-
     private _addMeshSprite(radius:number,color:Color,pos:Vector3){
         let sp3 = new Sprite3D();
         let mf = sp3.addComponent(MeshFilter);
@@ -224,17 +240,8 @@ export class IK_System{
         return sp3;
     }    
 
-    private worldToLocalRotation(worldRot: Quaternion): Quaternion {
-        // 实现世界旋转到局部旋转的转换
-        return null;
-    }
-
-    /**
-     * 要求joints和bones的顺序是一致的
-     * @param chain 
-     * @param bones 
-     */
-    private _applyChain(chain:IK_Chain, bones:Sprite3D[]){
+    solve(chain:IK_Chain, target:IK_Target){
+        this.solver.solve(chain,target);
     }
 
     onUpdate(){
@@ -244,7 +251,7 @@ export class IK_System{
                 continue;
             if(!udata.target)
                 continue;
-            this.solver.solve(chain,udata.target);
+            this.solve(chain,udata.target);
             //应用ik结果
             //this._applyChain(chain,udata.bones);
             //要求joints和bones的顺序是一致的
@@ -264,21 +271,11 @@ export class IK_System{
                     //bone.transform.rotation = rot;
                 }
             }
-    
-
-            //DEBUG
-            for(let n=chain.joints.length,i=n-1; i>=0; i--){
-                let joint = chain.joints[i];
-                let mod = udata.debugMod[i]
-                mod.transform.position = joint.position;
-            }    
         }
 
-        //TEST
-
-    }
-
-    upbdatePose(){
+        if(this._showDbg){
+            this.updateDebugModel();
+        }
 
     }
 

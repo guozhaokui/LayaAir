@@ -40,20 +40,18 @@ function createMeshSprite(mesh:Mesh,color:Color){
     return sp3;
 }
 
+var ikcomp:IK_Comp;
+
 class IKDemo {
     private scene: Scene3D;
     private camera: Camera;
-    private chain: IK_Chain;
-    private solver: IK_ISolver;
     private target: Sprite3D;
-    private joints: Sprite3D[];
-    private targetPose = new IK_Target(new Vector3(), new Quaternion())
 
     constructor(scene:Scene3D, camera:Camera) {
         this.scene = scene;
         this.camera=camera;
-        this.createIKChain();
-        this.target = createMeshSprite(PrimitiveMesh.createSphere(0.2),new Color(1,0,0,1));
+        //this.createIKChain();
+        this.target = createMeshSprite(PrimitiveMesh.createSphere(0.4),new Color(1,0,0,1));
         scene.addChild(this.target);
 
         // let O = createMeshSprite(PrimitiveMesh.createSphere(0.2),new Color(0,0,0,1));
@@ -62,69 +60,19 @@ class IKDemo {
         Laya.timer.frameLoop(1, this, this.onUpdate);
     }
 
-    private createIKChain(): void {
-        this.chain = new IK_Chain();
-        this.joints = [];
-
-        const numJoints = 5;
-        const jointLength = 1;
-
-        let r1 = new Quaternion();
-        rotationTo(new Vector3(0,1,0), new Vector3(0,0,1), r1);
-        for (let i = 0; i < numJoints; i++) {
-            const position = new Vector3(0, i * jointLength, 0);
-            const joint = new IK_Joint();
-            joint.angleLimit = new IK_AngleLimit( new Vector3(-Math.PI, 0,0), new Vector3(Math.PI, 0,0))
-            this.chain.addJoint(joint, position, true);
-            if(i>=2){
-                joint.angleLimit.min.z=-Math.PI;
-                joint.angleLimit.max.z=Math.PI;
-            }
-
-            const cylinderJoint = createMeshSprite(PrimitiveMesh.createCylinder(0.1, jointLength),new Color(1,1,1,1));
-            cylinderJoint.transform.localRotation = r1;
-            cylinderJoint.transform.localPosition = new Vector3(0,0,jointLength*0.5);
-            let sp = new Sprite3D();
-            sp.addChild(cylinderJoint);
-            let b = createMeshSprite(PrimitiveMesh.createSphere(0.2),new Color(0,1,0,1));
-            sp.addChild(b);
-            sp.transform.position = position;
-            this.scene.addChild(sp);
-            this.joints.push(sp);
-        }
-        this.chain.setEndEffector(numJoints-1)
-        this.joints[numJoints-1].active=false;  //最后一个是个球
-
-        this.solver = new IK_CCDSolver();
-    }
-
     private onUpdate(): void {
         // Move target
         const time = Laya.timer.currTimer * 0.001;
         let targetPos = this.target.transform.position;
         targetPos.setValue(
-            Math.sin(time) * 2,
-            2 ,
-            Math.cos(time * 0.5) * 3
+            Math.sin(time) * 4,
+            4 ,
+            Math.cos(time * 0.5) * 4
         );
-        this.targetPose.pos = this.target.transform.position.clone();
-        //DEBUG
-        //this.targetPose.pos = new Vector3(0,2,-3);
-        //targetPos.setValue(3,3,0)
-
+        ikcomp.setTarget('ttt',new IK_Target(targetPos));
         this.target.transform.position = targetPos;
 
-        // Solve IK
-        this.solver.solve(this.chain, this.targetPose);
 
-        // Update joint visuals
-        for (let i = 0; i < this.chain.joints.length; i++) {
-            const joint = this.chain.joints[i];
-            const cylinderJoint = this.joints[i];
-
-            cylinderJoint.transform.position = joint.position;
-            cylinderJoint.transform.rotation = joint.rotationQuat;
-        }
     }
 }
 
@@ -189,7 +137,11 @@ async function test() {
 
         //对于导入的gltf，动画是加在根节点上的
         let anim = skinSp3.getComponent(Animator)
-        skinSp3.addComponent(IK_Comp)
+        ikcomp = skinSp3.addComponent(IK_Comp)
+
+        let chain = ikcomp.addChainByBoneName('Bone.004',5,true);
+        chain.name='ttt';
+        ikcomp.setTarget('ttt', new IK_Target(new Vector3(10,10,10)));        
 
         //加载材质
         let mtl = await Laya.loader.load('IKRes/Material.lmat')
@@ -197,7 +149,7 @@ async function test() {
         let compSkinn = skinsp.getComponent(SkinnedMeshRenderer);
         compSkinn.sharedMaterial = mtl;
     }
-    //new IKDemo(scene,camera);
+    new IKDemo(scene,camera);
 }
 
 

@@ -72,9 +72,18 @@ export class IK_Chain extends IK_Pose1 {
 
     //给一个相对空间的，如果都是null则使用最后一个joint作为end effector
     //chain只是允许设置相对空间的，如果要设置世界空间，需要在system中设置，那里能得到世界信息
-    setEndEffector(index: number) {
+    setEndEffector(index=-1) {
         let joints = this.joints;
+        if(index<0){
+            index = joints.length-1;
+        }
         this.end_effector = new IK_EndEffector(joints[index]);
+    }
+
+    //附加一个末端。
+    appendEndEffector(pos: Vector3, isWorldSpace = false) {
+        this.addJoint(new IK_Joint(), pos, isWorldSpace);
+        this.setEndEffector();
     }
 
     enable(b: boolean) {

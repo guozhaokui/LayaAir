@@ -8,14 +8,14 @@ import { Quaternion } from "../maths/Quaternion";
 
 // 使用示例
 const ccdSolver = new IK_CCDSolver();
-const ikSystem = new IK_System(new Vector3(), new Quaternion(), ccdSolver);
+const ikSystem = new IK_System();
 
 let chain1 = new IK_Chain();
-chain1.addJoint(new IK_Joint(1));
-chain1.addJoint(new IK_Joint(1));
+chain1.addJoint(new IK_Joint(), new Vector3());
+chain1.addJoint(new IK_Joint(), new Vector3(0,1,0));
 
 // 设置末端执行器
-chain1.setEndEffector(new Vector3(0, 2, 0));
+chain1.appendEndEffector(new Vector3(0, 2, 0));
 
 // 求解IK
-ikSystem.solve( new IK_Target(new Vector3(1, 1, 1),null));
+ikSystem.solve(chain1,new IK_Target(new Vector3(1, 1, 1),null));
