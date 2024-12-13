@@ -4,7 +4,8 @@ import { Vector3 } from "../maths/Vector3";
 // 定义关节接口
 export interface IK_IJoint {
     position: Vector3;
-    rotationEuler: Vector3;
+    rotationQuat:Quaternion;
+    //rotationEuler: Vector3;
     length: number;
     angleLimit: IK_AngleLimit;
     type: "revolute" | "prismatic";    //旋转，平移
@@ -24,12 +25,10 @@ export class IK_AngleLimit {
 export class IK_Joint implements IK_IJoint {
     // 内部存储使用四元数
     private _rotationQuat = new Quaternion();
-    private _eulerDirty = false;
     angleLimit: IK_AngleLimit = null;  //null就是不限制，-PI到PI
     type: "revolute" | "prismatic";
     //世界空间的(system空间的)
     position: Vector3;
-    rotationEuler: Vector3;
     length = 1;
 
     constructor() {
@@ -44,30 +43,12 @@ export class IK_Joint implements IK_IJoint {
     }
 
     // 设置旋转（四元数接口）
-    setRotationQuat(q: Quaternion) {
+    set rotationQuat(q: Quaternion) {
         q.normalize(this._rotationQuat);
-        this._eulerDirty = true;
     }
 
-    getRotaionQuat() {
+    get rotationQuat() {
         return this._rotationQuat;
-    }
-
-    // 设置旋转（欧拉角接口）
-    setEulerAngles(angels: Vector3) {
-        Quaternion.createFromYawPitchRoll(angels.y, angels.x, angels.z, this._rotationQuat);
-        angels.cloneTo(this.rotationEuler)
-        this._eulerDirty = false;
-    }
-
-    // 获取欧拉角（用于展示）
-    getEulerAngles(ang: Vector3) {
-        if (this._eulerDirty) {
-            //TODO
-            this._eulerDirty = false;
-        }
-        this.rotationEuler.cloneTo(ang);
-        return ang;
     }
 
     setAngleLimit(min: Vector3, max: Vector3): void {

@@ -12,12 +12,14 @@ let Z = new Vector3(0, 0, 1);
  * 从IK_pose1可以方便的绑定到某个骨骼上，随着动画动
  */
 export class IK_Chain extends IK_Pose1 {
+    name=''
     joints: IK_Joint[];
     //先只支持单个末端执行器
     end_effector: IK_EndEffector;
     private _origin = new Vector3();
     //设置世界矩阵或者修改某个joint的时候更新。0表示需要全部更新
     //private _dirtyIndex = 0;
+    userData:any=null;
 
     constructor() {
         super();
@@ -39,7 +41,7 @@ export class IK_Chain extends IK_Pose1 {
         joint.position = new Vector3();
         if (!lastJoint) {
             this._origin = pos.clone();
-            joint.setRotationQuat(new Quaternion());  //第一个固定为单位旋转
+            joint.rotationQuat = new Quaternion();  //第一个固定为单位旋转
             pos.cloneTo(joint.position);
         } else {
             if (isWorldPos) {
@@ -57,9 +59,9 @@ export class IK_Chain extends IK_Pose1 {
             lastJoint.length = dpos.length();
             //计算朝向
             dpos.normalize();
-            let quat = lastJoint.getRotaionQuat();
+            let quat = lastJoint.rotationQuat;
             rotationTo(Z, dpos, quat);
-            lastJoint.setRotationQuat(quat);
+            lastJoint.rotationQuat = quat;
         }
         this.joints.push(joint);
         //为了简化，末端就是最后一个joint
@@ -76,7 +78,6 @@ export class IK_Chain extends IK_Pose1 {
     }
 
     enable(b: boolean) {
-
     }
 
     setWorldPos(pos: Vector3) {
@@ -84,31 +85,17 @@ export class IK_Chain extends IK_Pose1 {
         //this._dirtyIndex=0;
     }
 
-    /**
-     * 从某个index开始更新世界位置
-     * @param index 
-     */
-    // private updateWorldPos(){
-    //     let joints = this.joints;
-    //     let base = this._origin;
-    //     for (let i = this._dirtyIndex; i < joints.length - 1; i++) {
-    //         const current = joints[i];
-    //         current.position.setValue()
-    //         current.length;
-    //     }
-    //     this._dirtyIndex=joints.length;
-    // }
-
+    //从某个joint开始旋转，会调整每个joint的位置
     rotateJoint(jointId: number, deltaQuat: Quaternion) {
         let joints = this.joints;
         for (let i = jointId; i < joints.length - 1; i++) {
             const current = joints[i];
 
             //先更新自己的朝向
-            const curQuat = current.getRotaionQuat();
+            const curQuat = current.rotationQuat;
             Quaternion.multiply(deltaQuat, curQuat, curQuat);
             curQuat.normalize(curQuat);
-            current.setRotationQuat(curQuat);
+            current.rotationQuat = curQuat;
 
             const direction = new Vector3(0, 0, 1);
             Vector3.transformQuat(direction, curQuat, direction);
