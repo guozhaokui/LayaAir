@@ -16,9 +16,9 @@ import { rotationTo } from "./IK_Utils";
 interface IK_ChainUserData{
     target:IK_Target;
     //顺序是从根到末端
-    bones:Sprite3D[];
-    rotOffs:Quaternion[];
-    debugMod?:Sprite3D[];
+    //bones:Sprite3D[];
+    //rotOffs:Quaternion[];
+    //debugMod?:Sprite3D[];
 }
 
 //一个可以整体移动的系统，例如一个人身上的多个链
@@ -50,10 +50,8 @@ export class IK_System{
 
     set showDbg(b:boolean){
         this._showDbg=b;
-        if(!b){
-            for(let chain of this.chains){
-                chain.userData.debugMod = null;
-            }
+        for(let chain of this.chains){
+            chain.showDbg = b;
         }
     }
 
@@ -171,32 +169,17 @@ export class IK_System{
         
         let userData = {bones:[], target:null, rotOffs:[]} as IK_ChainUserData;
         chain.userData=userData;
-        let rotOffs = userData.rotOffs;
-        let jointBones = userData.bones;    //新建一个是为了保证顺序与joint一致
 
         //创建chain
         //确定对应关系
         for(let i=length-1; i>=0; i--){
-            //注意按照从根到末端的顺序
-            const joint = new IK_Joint();
             const curnode = bones[i];   //前面的是根
-            jointBones.push(curnode);
+            //注意按照从根到末端的顺序
+            const joint = new IK_Joint(curnode);
             let wmat = curnode.transform.worldMatrix.elements;
             let gpos = new Vector3(wmat[12],wmat[13],wmat[14]);
             //joint.angleLimit = new IK_AngleLimit( new Vector3(-Math.PI, 0,0), new Vector3(Math.PI, 0,0))
             chain.addJoint(joint, gpos, true);
-
-            //旋转偏移：ik默认的骨骼朝向是(0,0,1),因此这里先要找出实际z的朝向，作为一个旋转偏移
-            if(chain.joints.length>1){
-                let curBoneZ = new Vector3(wmat[8],wmat[9],wmat[10]);
-                let rotoff = new Quaternion();
-                let lastJointZ = new Vector3();
-                let lastJoint = chain.joints[chain.joints.length-2];
-                gpos.vsub(lastJoint.position,lastJointZ);
-                lastJointZ.normalize();
-                rotationTo(lastJointZ,curBoneZ,rotoff);
-                rotOffs.push(rotoff);
-            }
         }
         if(isEndEffector){
             chain.setEndEffector(length-1);
@@ -252,36 +235,15 @@ export class IK_System{
                 continue;
             if(!udata.target)
                 continue;
-            let bones = udata.bones;
-            if(!bones)
-                continue;
-            let rootPos = bones[0].transform.position;
-            chain.setWorldPos(rootPos);
+            chain.updateBoneAnim();
             this.solve(chain,udata.target);
             //应用ik结果
-            //this._applyChain(chain,udata.bones);
-            //要求joints和bones的顺序是一致的
-            let rotOffs = udata.rotOffs;
-            for(let i=0, n=chain.joints.length; i<n; i++){
-                let joint = chain.joints[i];
-                let bone = bones[i];
-                //bone.transform.position = joint.position;
-                let rot = joint.rotationQuat;
-                let rotOff = rotOffs[i];
-                if(rotOff){
-                    let r = bone.transform.rotation;
-                    Quaternion.multiply(rot,rotOff,r);
-                    bone.transform.rotation = r;
-                }else{
-                    //bone.transform.rotation = rot;
-                }
-            }
+            chain.applyIKResult();
         }
 
         if(this._showDbg){
             this.updateDebugModel();
         }
-
     }
 
     /**

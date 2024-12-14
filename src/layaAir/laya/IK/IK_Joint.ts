@@ -1,3 +1,4 @@
+import { Sprite3D } from "../d3/core/Sprite3D";
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
 
@@ -21,6 +22,13 @@ export class IK_AngleLimit {
     ) { }
 }
 
+export class IK_JointUserData{
+    bone:Sprite3D;
+    rotOff:Quaternion;
+    //调试用的球
+    dbgSphere:Sprite3D;
+}
+
 // 实现基本关节类
 export class IK_Joint implements IK_IJoint {
     // 内部存储使用四元数
@@ -30,8 +38,13 @@ export class IK_Joint implements IK_IJoint {
     //世界空间的(system空间的)
     position: Vector3;
     length = 1;
+    userData = new IK_JointUserData();
 
-    constructor() {
+    constructor(bone?:Sprite3D) {
+        if(bone){
+            this.userData.bone = bone;
+            this.userData.rotOff = new Quaternion();
+        }
     }
 
     updatePosition(): void {

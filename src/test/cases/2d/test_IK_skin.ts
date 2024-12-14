@@ -139,10 +139,13 @@ async function test() {
 
         //对于导入的gltf，动画是加在根节点上的
         let anim = skinSp3.getComponent(Animator)
-        ikcomp = skinSp3.addComponent(IK_Comp)
 
-        let chain = ikcomp.addChainByBoneName('Bone.004',3,true);
+        ikcomp = skinSp3.addComponent(IK_Comp)
+        //根据骨骼创建ik链。可以多个。
+        let chain = ikcomp.addChainByBoneName('Bone.004',3,false);
+        chain.appendEndEffector(new Vector3(0,1.5,0))
         chain.name='ttt';
+        //设置ik目标
         ikcomp.setTarget('ttt', new IK_Target(new Vector3(10,10,10)));        
 
         //加载材质

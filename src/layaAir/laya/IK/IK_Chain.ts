@@ -1,4 +1,9 @@
-import { Matrix4x4 } from "../maths/Matrix4x4";
+import { BlinnPhongMaterial } from "../d3/core/material/BlinnPhongMaterial";
+import { MeshFilter } from "../d3/core/MeshFilter";
+import { MeshRenderer } from "../d3/core/MeshRenderer";
+import { Sprite3D } from "../d3/core/Sprite3D";
+import { PrimitiveMesh } from "../d3/resource/models/PrimitiveMesh";
+import { Color } from "../maths/Color";
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
 import { IK_EndEffector } from "./IK_EndEffector";
@@ -22,6 +27,7 @@ export class IK_Chain extends IK_Pose1 {
     private _lastPos = new Vector3();
     //设置世界矩阵或者修改某个joint的时候更新。0表示需要全部更新
     //private _dirtyIndex = 0;
+    private _showDbg = false;
     userData:any=null;
 
     constructor() {
@@ -80,6 +86,28 @@ export class IK_Chain extends IK_Pose1 {
             index = joints.length-1;
         }
         this.end_effector = new IK_EndEffector(joints[index]);
+
+        //设置结束，可以做一些预处理
+        this.onLinkEnd();
+    }
+
+    private onLinkEnd(){
+        //计算每个joint的相对于bone的旋转偏移
+        let joincnt = this.joints.length;
+        let lastJointZ = new Vector3();
+        for(let i=0; i<joincnt-1; i++){
+            let curJoint = this.joints[i];
+            let curnode = curJoint.userData.bone;
+            let nextJoint = this.joints[i+1];
+            let wmat = curnode.transform.worldMatrix.elements;
+            //旋转偏移：ik默认的骨骼朝向是(0,0,1),因此这里先要找出实际z的朝向，作为一个旋转偏移
+            nextJoint.position.vsub(curJoint.position,lastJointZ);
+            lastJointZ.normalize();
+            let curBoneZ = new Vector3(wmat[8],wmat[9],wmat[10]);
+            let rotoff = new Quaternion();
+            rotationTo(lastJointZ,curBoneZ,rotoff);
+            curJoint.userData.rotOff = rotoff;
+        }
     }
 
     //附加一个末端。
@@ -90,6 +118,25 @@ export class IK_Chain extends IK_Pose1 {
 
     enable(b: boolean) {
     }
+
+    set showDbg(b:boolean){
+        this._showDbg=b;
+        if(!b){
+            for(let joint of this.joints){
+                if(joint.userData.dbgSphere){
+                    if(joint.userData.dbgSphere.scene){
+                        joint.userData.dbgSphere.scene.removeChild(joint.userData.dbgSphere);
+                    }
+                }
+                joint.userData.dbgSphere = null;
+            }
+        }
+    }
+
+    get showDbg(){
+        return this._showDbg;
+    }
+
 
     /**
      * 设置根节点的位置
@@ -104,6 +151,55 @@ export class IK_Chain extends IK_Pose1 {
         //为了避免误差，第一个直接设置。这样后续的即使有误差，也会被solve的过程中修正（长度固定）
         this.joints[0].position.setValue(pos.x, pos.y,pos.z);
         this._lastPos.setValue(pos.x, pos.y, pos.z);
+    }
+
+    //应用一下骨骼的动画
+    updateBoneAnim(){
+        if(!this.joints[0])return;
+        let rootBone = this.joints[0]?.userData?.bone;
+        if(!rootBone) return;
+        let rootPos = rootBone.transform.position;
+        this.setWorldPos(rootPos);        
+    }
+
+    private _addMeshSprite(radius:number,color:Color,pos:Vector3){
+        let sp3 = new Sprite3D();
+        let mf = sp3.addComponent(MeshFilter);
+        mf.sharedMesh = PrimitiveMesh.createSphere(radius);
+        let r = sp3.addComponent(MeshRenderer)
+        let mtl = new BlinnPhongMaterial();
+        r.material = mtl;
+        sp3.transform.position=pos;
+        //this.rootSprite.scene.addChild(sp3);
+        mtl.albedoColor = color;
+        return sp3;
+    }        
+
+    applyIKResult(){
+        for(let i=0, n=this.joints.length; i<n; i++){
+            let joint = this.joints[i];
+            let bone = joint.userData.bone;
+            if(!bone) continue;
+            //bone.transform.position = joint.position;
+            let rot = joint.rotationQuat;
+            let rotOff = joint.userData.rotOff;
+            if(rotOff){
+                let r = bone.transform.rotation;
+                Quaternion.multiply(rot,rotOff,r);
+                bone.transform.rotation = r;
+            }else{
+                //bone.transform.rotation = rot;
+            }
+
+            if(this._showDbg){
+                let mod = joint.userData.dbgSphere;
+                if(!mod){
+                    mod = joint.userData.dbgSphere = this._addMeshSprite(0.2,new Color(1,1,1,1),new Vector3());
+                    bone.scene.addChild(mod);
+                }
+                mod.transform.position = joint.position;
+            }
+        }
     }
 
     //从某个joint开始旋转，会调整每个joint的位置
