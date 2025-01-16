@@ -2,7 +2,9 @@ import { AnimationClip } from "../../d3/animation/AnimationClip";
 import { KeyframeNode } from "../../d3/animation/KeyframeNode";
 import { KeyframeNodeList } from "../../d3/animation/KeyframeNodeList";
 import { KeyFrameValueType } from "../../d3/component/Animator/KeyframeNodeOwner";
+import { MeshFilter } from "../../d3/core/MeshFilter";
 import { MeshSprite3D } from "../../d3/core/MeshSprite3D";
+import { SkinnedMeshRenderer } from "../../d3/core/SkinnedMeshRenderer";
 import { Sprite3D } from "../../d3/core/Sprite3D";
 import { IndexBuffer3D } from "../../d3/graphics/IndexBuffer3D";
 import { VertexBuffer3D } from "../../d3/graphics/VertexBuffer3D";
@@ -76,25 +78,25 @@ export function mmdToMesh(info: PmxObject): Mesh {
                     let boneweight0 = curVert.boneWeight as PmxObject.Vertex.BoneWeight<typeof weightType>;
                     //boneIndicesArray[i * 4] = boneweight0.boneIndices;//TODO 根据 this._modelInfo.boneIndexSize
                     //boneWeightsArray[i * 4] = 1.0;
-                    floatArray[boneInfoPos] = boneweight0.boneIndices;
-                    floatArray[boneInfoPos+1] = boneweight0.boneIndices;
-                    floatArray[boneInfoPos+2] = boneweight0.boneIndices;
-                    floatArray[boneInfoPos+3] = boneweight0.boneIndices;
-                    floatArray[boneInfoPos+4] = 1.0;
-                    floatArray[boneInfoPos+5] = 0.0;
-                    floatArray[boneInfoPos+6] = 0.0;
-                    floatArray[boneInfoPos+7] = 0.0;
+                    floatArray[boneInfoPos+0] = 1.0;
+                    floatArray[boneInfoPos+1] = 0.0;
+                    floatArray[boneInfoPos+2] = 0.0;
+                    floatArray[boneInfoPos+3] = 0.0;
+                    floatArray[boneInfoPos+4] = boneweight0.boneIndices;
+                    floatArray[boneInfoPos+5] = boneweight0.boneIndices;
+                    floatArray[boneInfoPos+6] = boneweight0.boneIndices;
+                    floatArray[boneInfoPos+7] = boneweight0.boneIndices;
                     break;
                 case 1: // BDEF2
                     let boneweight1 = curVert.boneWeight as PmxObject.Vertex.BoneWeight<typeof weightType>;
-                    floatArray[boneInfoPos] = boneweight1.boneIndices[0];
-                    floatArray[boneInfoPos+1] = boneweight1.boneIndices[1];
-                    floatArray[boneInfoPos+2] = 0;
-                    floatArray[boneInfoPos+3] = 0;
-                    floatArray[boneInfoPos+4] = boneweight1.boneWeights;;
-                    floatArray[boneInfoPos+5] = 1-boneweight1.boneWeights;;
-                    floatArray[boneInfoPos+6] = 0.0;
-                    floatArray[boneInfoPos+7] = 0.0;                    
+                    floatArray[boneInfoPos+0] = boneweight1.boneWeights;;
+                    floatArray[boneInfoPos+1] = 1-boneweight1.boneWeights;;
+                    floatArray[boneInfoPos+2] = 0.0;
+                    floatArray[boneInfoPos+3] = 0.0;                    
+                    floatArray[boneInfoPos+4] = boneweight1.boneIndices[0];
+                    floatArray[boneInfoPos+5] = boneweight1.boneIndices[1];
+                    floatArray[boneInfoPos+6] = 0;
+                    floatArray[boneInfoPos+7] = 0;
                     break;
                 case 2: // BDEF4
                     let boneweight2 = curVert.boneWeight as PmxObject.Vertex.BoneWeight<typeof weightType>;
@@ -163,11 +165,17 @@ export function mmdToMesh(info: PmxObject): Mesh {
     subMesh._indexBuffer = mesh._indexBuffer;
     subMesh._vertexBuffer = mesh._vertexBuffer;
     subMesh._setIndexRange(0, indexCount);
+    let simpBoneList = [];
+    for(let i=0,n=info.bones.length; i<n; i++){
+        simpBoneList[i]=i;
+    }
+    //为什么是多个，按理说submesh只有一个材质
+    subMesh._boneIndicesList = [new Uint16Array(simpBoneList)];
+
     //subMesh.material = material;
     subMeshes.push(subMesh);
 
     mesh._setSubMeshes(subMeshes);
-
     return mesh;
 
     //material
@@ -293,16 +301,37 @@ export class MMDSkeleton {
 }
 
 export class MMDSprite extends Sprite3D{
-    renderSprite:MeshSprite3D;
+    renderSprite:Sprite3D;
     skeleton:MMDSkeleton;
+    _meshFilter:MeshFilter;
+    _render:SkinnedMeshRenderer;
     parsePmxObj(data:PmxObject){
-        let mesh =  mmdToMesh(data);
-        let meshSprite = new MeshSprite3D(mesh);
+        let meshSprite = new Sprite3D();
+        this._meshFilter = this.addComponent(MeshFilter);
+        this._render = this.addComponent(SkinnedMeshRenderer);        
         this.renderSprite = meshSprite;
-        this.addChild(meshSprite);
+        //this.addChild(meshSprite);
         let bones = mmdToSkeleton(data);
         this.skeleton = bones;
         this.addChild(bones.root);
+
+        let mesh =  mmdToMesh(data);
+        //计算bindpose
+        let bindPose:Matrix4x4[] = [];
+        bindPose.length = bones.sprites.length;
+        for(let i=0; i<bindPose.length; i++){
+            let sp = bones.sprites[i];
+            let invmat = new Matrix4x4();
+            sp.transform.worldMatrix.invert(invmat);
+            bindPose[i] = invmat;
+        }
+        mesh._inverseBindPoses = bindPose;
+
+        //这里面会给renderer也设mesh
+        this._meshFilter.sharedMesh = mesh;
+        this._render.rootBone = bones.root;
+        this._render.bones = bones.sprites;
+
     }
 
     //vmd中的节点目前还没有层次结构，要根据实际的结构修改一下
@@ -499,8 +528,12 @@ export function vmdToLayaClip(vmddata:MmdAnimation){
         let frmcnt = cur.frameNumbers.length;
         let keys =[];
         for(let f =0; f<frmcnt; f++){
-            keys.push( new MyQuaternionKeyframe( cur.frameNumbers[f]/FPS, new Quaternion(
-                -cur.rotations[f*4],-cur.rotations[f*4+1],cur.rotations[f*4+2],cur.rotations[f*4+3]
+            keys.push( new MyQuaternionKeyframe( 
+                cur.frameNumbers[f]/FPS, new Quaternion(
+                    -cur.rotations[f*4],
+                    -cur.rotations[f*4+1],
+                    cur.rotations[f*4+2],
+                    cur.rotations[f*4+3]
             )));
         }
         node.setKeyframes(keys);
@@ -525,8 +558,12 @@ export function vmdToLayaClip(vmddata:MmdAnimation){
         let keysp = [];
         for(let f =0; f<frmcnt; f++){
             if(cur.rotations[f*4]!=undefined){
-                keysr.push( new MyQuaternionKeyframe( cur.frameNumbers[f]/FPS, new Quaternion(
-                    -cur.rotations[f*4],-cur.rotations[f*4+1],cur.rotations[f*4+2],cur.rotations[f*4+3]
+                keysr.push( new MyQuaternionKeyframe( 
+                    cur.frameNumbers[f]/FPS, new Quaternion(
+                        -cur.rotations[f*4],
+                        -cur.rotations[f*4+1],
+                        cur.rotations[f*4+2],
+                        cur.rotations[f*4+3]
                 )));
             }
             if(cur.positions[f*3]!=undefined){

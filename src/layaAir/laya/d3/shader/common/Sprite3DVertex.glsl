@@ -5,7 +5,7 @@
 
     #ifdef BONE
 // todo const int c_MaxBoneCount = 24
-uniform mat4 u_Bones[24];
+uniform mat4 u_Bones[224];
 
 	#ifdef SIMPLEBONE
 uniform vec4 u_SimpleAnimatorParams;
