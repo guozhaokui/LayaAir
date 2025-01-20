@@ -40,7 +40,8 @@ export interface IK_Constraint {
     setQuat(q: Quaternion): void;
     //setDQuat(q:Quaternion):void;
     /**
-     * 约束一个joint，会直接修改joint的朝向，后续可以应用这个朝向来修改下一个节点的位置
+     * 约束一个joint，会直接修改joint的朝向
+     * 必须要同时更新位置和朝向
      * @param baseAxis 父朝向，0度的方向
      * @param v 要限制的向量
      * @param constraintedV 限制后的向量，为null则不需要
@@ -431,10 +432,10 @@ export class IK_FixConstraint implements IK_Constraint {
     }
 
     constraint(joint: IK_Joint,dpos:Vector3): boolean {
-        let oriEnd = new Vector3();
         let bone = new Vector3(0,0,joint.length);
+        let oriEnd = new Vector3();
         Vector3.transformQuat(bone,joint.rotationQuat,oriEnd);
-
+        //修改朝向
         if(joint.parent){
             joint.parent.rotationQuat.cloneTo(joint.rotationQuat);
         }else{
@@ -442,8 +443,8 @@ export class IK_FixConstraint implements IK_Constraint {
         }
 
         let curEnd = new Vector3();
+        //此时的朝向等于parent的朝向
         Vector3.transformQuat(bone,joint.rotationQuat, curEnd );
-
         curEnd.vsub(oriEnd, dpos);
         return true;
     }

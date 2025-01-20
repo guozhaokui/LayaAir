@@ -42,6 +42,7 @@ export class IK_Joint {
         ClsInst.addInst(this);
         //debug
         if(bone){
+            this.name = bone.name;
             this.userData.bone = bone;
             this.userData.rotOff = new Quaternion();
         }

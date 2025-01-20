@@ -18,14 +18,7 @@ import { RenderState } from "../RenderDriver/RenderModuleData/Design/RenderState
 import { Scene3D } from "../d3/core/scene/Scene3D";
 import { Laya } from "../../Laya";
 import { Mesh } from "../d3/resource/models/Mesh";
-
-interface IK_ChainUserData{
-    target:IK_Target;
-    //顺序是从根到末端
-    //bones:Sprite3D[];
-    //rotOffs:Quaternion[];
-    //debugMod?:Sprite3D[];
-}
+import { IK_Constraint } from "./IK_Constraint";
 
 function createMeshSprite(mesh:Mesh,color:Color){
     let sp3 = new Sprite3D();
@@ -50,26 +43,14 @@ export class IK_System{
     private _updating=false;
 
     constructor(scene:Scene3D) {
-        //this.solver = new IK_CCDSolver();
-        this.solver = new IK_FABRIK_Solver();
+        this.solver = new IK_CCDSolver();
+        //this.solver = new IK_FABRIK_Solver();
         this._scene = scene;
         ClsInst.addInst(this);
     }
 
     setRoot(r:Sprite3D){
         this.rootSprite=r;
-    }
-
-    setSolver(solver:"CCD"){
-        switch(solver){
-            default:
-                this.solver = new IK_CCDSolver();
-                break;
-        }
-    }
-
-    onPoseChange(): void {
-        //TODO 
     }
 
     set showDbg(b:boolean){
@@ -90,7 +71,6 @@ export class IK_System{
             let mtl = this._visualSp._render.material;
             mtl.depthTest= RenderState.DEPTHTEST_ALWAYS;
             this._scene.addChild(this._visualSp);
-            this.solver;
         }
         if(b){
             //先画坐标轴
@@ -110,6 +90,12 @@ export class IK_System{
      */
     addChain(chain: IK_Chain) {
         this.chains.push(chain);
+    }
+
+    setJointConstraint(def:{[key:string]:IK_Constraint}){
+        for(let chain of this.chains){
+            chain.setConstraint(def);
+        }
     }
 
     private _getChildByID(sp:Sprite3D, id:number):Sprite3D|null{
@@ -190,10 +176,12 @@ export class IK_System{
 
     addChainByBoneName(name:string, length:number, isEndEffector=true):IK_Chain{
         let bones = this.getBoneChain(name,length);
-        if(bones.length!=length){
-            throw 'eeee';
+        if(!bones || bones.length!=length){
+            console.error(`没有找到骨骼:${name}或者长度不足${length}`)
+            return null;
         }
         let chain = new IK_Chain();
+        chain.name = name;
         
         //创建chain
         //确定对应关系
@@ -229,28 +217,52 @@ export class IK_System{
         return null;
     }
 
-    setTarget(endEffectorName:string, target:IK_Target){
-        let chain = this._findChainByName(endEffectorName);
+    setTarget(endEffectorName:string|IK_Chain, target:IK_Target){
+        let chain:IK_Chain=null;
+        if(endEffectorName instanceof IK_Chain){
+            chain = endEffectorName;
+        }else{
+            chain = this._findChainByName(endEffectorName);
+        }
         if(!chain)
             return;
         chain.target = target;
     }
 
-    private _addMeshSprite(radius:number,color:Color,pos:Vector3){
-        let sp3 = new Sprite3D();
-        let mf = sp3.addComponent(MeshFilter);
-        mf.sharedMesh = PrimitiveMesh.createSphere(radius);
-        let r = sp3.addComponent(MeshRenderer)
-        let mtl = new BlinnPhongMaterial();
-        r.material = mtl;
-        sp3.transform.position=pos;
-        this.rootSprite.scene.addChild(sp3);
-        mtl.albedoColor = color;
-        return sp3;
-    }    
-
     async solve(chain:IK_Chain, target:IK_Target){
-        await this.solver.solve(chain,target,this._visualSp);
+        //简单的chain直接计算
+        if(chain.joints.length==2){
+            this._solveSimpleChain(chain,target);
+        }else{
+            await this.solver.solve(chain,target,this._visualSp);
+        }
+    }
+
+    private _solveSimpleChain(chain:IK_Chain,target:IK_Target){
+        let base = chain.joints[0];
+        let end = chain.joints[1];
+        let parent = base.userData.bone||chain.attachBone;
+        //这种的只能朝向
+        let dir = new Vector3();
+        //end.position.vsub(base.position,dir);
+        target.pos.vsub(base.position,dir);
+        dir.normalize();
+        rotationTo(new Vector3(0,0,1),dir,base.rotationQuat);
+
+        let dpos = new Vector3();
+        if(base._angleLimit){
+            base._angleLimit.constraint(base,dpos);
+        }
+
+        //更新end的位置和朝向
+        if(end.userData.bone){
+            let endpos = new Vector3();
+            base.position.vadd(dir.scale(base.length, endpos), end.position);
+            //TODO 修改朝向
+            //Quaternion.multiply(end.rotationQuat,)
+            //end.rotationQuat
+            //在skin中，通常这个没什么用
+        }
     }
 
     buildDbgModel(){
@@ -311,8 +323,8 @@ export class IK_System{
             if(!target) 
                 continue;
             //debug
-            tpos.cloneTo(target.pos);
-            target.pos.setValue(-2,1,0);
+            // tpos.cloneTo(target.pos);
+            // target.pos.setValue(0,0.8,0);
             //debug
             chain.updateBoneAnim();
             let p = this.solve(chain,target);

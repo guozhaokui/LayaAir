@@ -8,7 +8,7 @@ import { PrimitiveMesh } from "../d3/resource/models/PrimitiveMesh";
 import { Color } from "../maths/Color";
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
-import { IK_AngleLimit } from "./IK_Constraint";
+import { IK_AngleLimit, IK_Constraint } from "./IK_Constraint";
 import { IK_EndEffector } from "./IK_EndEffector";
 import { IK_Joint } from "./IK_Joint";
 import { IK_Pose1, IK_Target } from "./IK_Pose1";
@@ -27,9 +27,10 @@ export class IK_Chain extends IK_Pose1 {
     //顺序是从根到末端
     joints: IK_Joint[];
     //先只支持单个末端执行器
-    end_effector: IK_EndEffector;
+    private _end_effector: IK_EndEffector;
     //构造的时候的位置，以后的位置都是相对这个做偏移
     private _lastPos = new Vector3();
+    attachBone:Sprite3D=null;   //附加到的sprite，TODO 这个与lastpos冲突，再考虑一下
     //设置世界矩阵或者修改某个joint的时候更新。0表示需要全部更新
     //private _dirtyIndex = 0;
     private _showDbg = false;
@@ -39,6 +40,11 @@ export class IK_Chain extends IK_Pose1 {
         super();
         ClsInst.addInst(this);
         this.joints = [];
+    }
+
+    //不可写
+    get end_effector(){
+        return this._end_effector;
     }
 
     /**
@@ -87,6 +93,14 @@ export class IK_Chain extends IK_Pose1 {
         }
     }
 
+    setConstraint(def:{[key:string]:IK_Constraint}){
+        for(let joint of this.joints){
+            if(def[joint.name]){
+                joint._angleLimit = def[joint.name];
+            }
+        }
+    }
+
     visualize(line:PixelLineSprite3D){
         //目标
         if(this.target){
@@ -112,7 +126,7 @@ export class IK_Chain extends IK_Pose1 {
             joint.visualize(line);
             let next = joints[i+1];
             if(next){
-                //line.addLine(joint.position, next.position, new Color(1,0,0,1), new Color(0,1,0,1));
+                line.addLine(joint.position, next.position, new Color(1,0,0,1), new Color(0,1,0,1));
             }
         }
     }
@@ -124,7 +138,7 @@ export class IK_Chain extends IK_Pose1 {
         if(index<0){
             index = joints.length-1;
         }
-        this.end_effector = new IK_EndEffector(joints[index]);
+        this._end_effector = new IK_EndEffector(joints[index]);
 
         //设置结束，可以做一些预处理
         this.onLinkEnd();

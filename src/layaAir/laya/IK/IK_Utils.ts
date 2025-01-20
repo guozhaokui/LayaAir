@@ -112,6 +112,9 @@ export class ClsInst{
         if(list){
             for(let o of list){
                 o.__proto__ = cls.prototype;
+                if(o['onProtoChange']){
+                    o['onProtoChange'].call(o);
+                }
             }
         }
     }

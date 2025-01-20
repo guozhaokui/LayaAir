@@ -157,7 +157,7 @@ export class IK_FABRIK_Solver implements IK_ISolver {
         const direction = currentJoint.position.vsub(prevJoint.position,v1).normalize();
         //修改当前关节(prev的下一个）的位置 current.pos = prev.pos + dir*prev.length
         prevJoint.position.vadd(direction.scale(prevJoint.length,v2),currentJoint.position);
-        if(false && prevJoint.angleLimit){
+        if( prevJoint.angleLimit){
             //先更新prevJoint的朝向才能应用约束
             rotationTo(Z,direction,prevJoint.rotationQuat);
             let dpos = new Vector3();
