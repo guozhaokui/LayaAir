@@ -4,10 +4,13 @@ import { Color } from "../maths/Color";
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
 import { IK_AngleLimit, IK_Constraint } from "./IK_Constraint";
+import { IK_Space } from "./IK_Space";
 import { ClsInst } from "./IK_Utils";
 
 export class IK_JointUserData{
     bone:Sprite3D;
+    //初始化的时候，sprite朝向与关节朝向的差：关节朝向*rotOff=sprite朝向（z轴）
+    //注意是chain空间
     rotOff:Quaternion;
     //调试用模型
     dbgModel:Sprite3D;
@@ -73,15 +76,16 @@ export class IK_Joint {
         return this._angleLimit;
     }
 
-    visualize(line:PixelLineSprite3D){
+    visualize(line:PixelLineSprite3D, space:IK_Space){
         //画出left 临时
         let left = this.left;
         let newLeft = new Vector3();
-        Vector3.transformQuat(left, this.rotationQuat, newLeft);
-        line.addLine(this.position, this.position.vadd(newLeft,newLeft), Color.RED, Color.RED);
+        Vector3.transformQuat(left, space.toWorldRot(this.rotationQuat), newLeft);
+        let worldPos = space.toWorldPos(this.position);
+        line.addLine( worldPos, worldPos.vadd(newLeft,newLeft), Color.RED, Color.RED);
 
         if(this.angleLimit){
-            this.angleLimit.visualize(line,this);
+            this.angleLimit.visualize(line,this,space);
         }
     }
 

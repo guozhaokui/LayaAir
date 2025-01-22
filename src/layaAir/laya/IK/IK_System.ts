@@ -31,16 +31,23 @@ function createMeshSprite(mesh:Mesh,color:Color){
     return sp3;
 }
 
+class ChainSlot{
+    chain:IK_Chain;
+    attach:Sprite3D;    //chain的root的parent
+}
+
 //一个可以整体移动的系统，例如一个人身上的多个链
 export class IK_System{
     static clsid = 'e7c05dbd-3a55-4f8a-a74b-1bb56162ca76'
     private solver: IK_ISolver;
     private chains: IK_Chain[] = [];
+    private chainsParent:Sprite3D[]=[];
     private rootSprite:Sprite3D = null;
     private _showDbg = false;
     private _visualSp:PixelLineSprite3D=null
     private _scene:Scene3D;
     private _updating=false;
+    private _boneConstraint:{[key:string]:IK_Constraint}=null;
 
     constructor(scene:Scene3D) {
         this.solver = new IK_CCDSolver();
@@ -93,6 +100,7 @@ export class IK_System{
     }
 
     setJointConstraint(def:{[key:string]:IK_Constraint}){
+        this._boneConstraint = def;        
         for(let chain of this.chains){
             chain.setConstraint(def);
         }
@@ -193,6 +201,11 @@ export class IK_System{
             let gpos = new Vector3(wmat[12],wmat[13],wmat[14]);
             //joint.angleLimit = new IK_AngleLimit( new Vector3(-Math.PI, 0,0), new Vector3(Math.PI, 0,0))
             chain.addJoint(joint, gpos, true);
+            if(this._boneConstraint){
+                if(this._boneConstraint[joint.name]){
+                    joint._angleLimit = this._boneConstraint[joint.name];
+                }
+            }
         }
         if(isEndEffector){
             chain.setEndEffector(length-1);

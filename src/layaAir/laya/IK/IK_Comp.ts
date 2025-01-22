@@ -10,7 +10,6 @@ import { ClsInst } from "./IK_Utils";
 export class IK_Comp extends Component {
     static clsid = '09dce20f-f6bd-4192-a494-5e3654ecd158'
     private _ik_sys:IK_System;
-    private _boneConstraint:{[key:string]:IK_Constraint}=null;
 
     constructor() {
         super();
@@ -42,9 +41,6 @@ export class IK_Comp extends Component {
 
     addChainByBoneName(endName: string, length: number, isEndEffector = true): IK_Chain {
         let chain = this._ik_sys.addChainByBoneName(endName, length, isEndEffector);
-        if(this._boneConstraint){
-            chain.setConstraint(this._boneConstraint);
-        }
         return chain;
     }
 

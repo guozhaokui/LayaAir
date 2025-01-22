@@ -4,20 +4,8 @@ import { Color } from "../maths/Color";
 import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
 import { IK_Joint } from "./IK_Joint";
+import { IK_Space } from "./IK_Space";
 import { ClsInst, rotationTo } from "./IK_Utils";
-
-/**
- * 两个向量夹角的弧度
- * @param v1 
- * @param v2 
- * @returns 
- */
-function VecAngle(v1: Vector3, v2: Vector3) {
-    let v1l = v1.length();
-    let v2l = v2.length();
-    let dot = v1.dot(v2);
-    return Math.acos(dot / v1l / v2l);
-}
 
 var v1 = new Vector3();
 var v2 = new Vector3();
@@ -32,12 +20,57 @@ const localRot = new Quaternion();
 const parentInv = new Quaternion();
 const quatI = new Quaternion();
 
+/**
+ * 两个向量夹角的弧度
+ * @param v1 
+ * @param v2 
+ * @returns 
+ */
+function VecAngle(v1: Vector3, v2: Vector3) {
+    let v1l = v1.length();
+    let v2l = v2.length();
+    let dot = v1.dot(v2);
+    return Math.acos(dot / v1l / v2l);
+}
+
+export function getVecAngInPlane(axisPos:Vector3, axis:Vector3, zero:Vector3, vec:Vector3){
+    let v1 = new Vector3();
+    vec.vsub(axisPos,v1);
+    let dot = Vector3.dot(v1, axis);
+    //投影到平面的向量
+    let projVec = new Vector3(
+        v1.x - dot * axis.x,
+        v1.y - dot * axis.y,
+        v1.z - dot * axis.z
+    );
+
+    //zero也投影一下
+    let dot1 = Vector3.dot(zero, axis);
+    let projZero = new Vector3(
+        zero.x - dot1 * axis.x,
+        zero.y - dot1 * axis.y,
+        zero.z - dot1 * axis.z
+    );
+
+    let angle = VecAngle(projZero, projVec);
+    let cross = new Vector3();
+    Vector3.cross(projZero, projVec, cross);
+    if (Vector3.dot(cross, axis) < 0) {
+        angle = -angle;
+    }
+    return angle;
+}
+
+function getJointParentRot(joint:IK_Joint){
+    if(joint.parent)
+        return joint.parent.rotationQuat;
+    if(joint.userData.bone && joint.userData.bone.parent){
+        return (joint.userData.bone.parent as Sprite3D).transform.rotation;
+    }
+    return null;
+}
+
 export interface IK_Constraint {
-    /**
-     * 旋转这个约束
-     * @param q 
-     */
-    setQuat(q: Quaternion): void;
     //setDQuat(q:Quaternion):void;
     /**
      * 约束一个joint，会直接修改joint的朝向
@@ -52,7 +85,10 @@ export interface IK_Constraint {
 
     init(joint: IK_Joint): void;
 
-    visualize(line: PixelLineSprite3D, joint: IK_Joint): void;
+    visualize(line: PixelLineSprite3D, joint: IK_Joint, space:IK_Space): void;
+
+    //给CCD用的，在有约束的情况下调整自己朝向目标
+    toTarget(joint:IK_Joint, targetPos:Vector3,endPos:Vector3, outQuat:Quaternion):Quaternion;
 }
 
 export function updateAxis(joint: IK_Joint, axis: Vector3) {
@@ -66,10 +102,6 @@ export class IK_AngleLimit implements IK_Constraint {
         public max: Vector3
     ) { 
         ClsInst.addInst(this);
-    }
-
-    setQuat(q: Quaternion): void {
-        throw new Error("Method not implemented.");
     }
 
     constraint(joint: IK_Joint,dpos:Vector3): boolean{
@@ -105,6 +137,9 @@ return false;
         return false;
     }
 
+    toTarget(joint:IK_Joint, targetPos:Vector3,endPos:Vector3, outQuat:Quaternion):Quaternion{
+        return null;
+    }
     init(joint: IK_Joint) { }
     visualize(line: PixelLineSprite3D, joint: IK_Joint) { }
 }
@@ -112,8 +147,9 @@ return false;
 
 export class IK_HingeConstraint implements IK_Constraint {
     static clsid = '9d1c1d57-bd6e-4b94-a59a-b735553da1ab'
-    private curHingeAxis = new Vector3();
-    private curRefDir = new Vector3();
+    //零度方向都是骨骼的初始方向z轴
+    private refDir = new Vector3(0,0,1);       // 参考方向，用来定义0度
+    private hingeAxis: Vector3;    // 转轴
 
     //debug
     __projVec = new Vector3()
@@ -121,51 +157,29 @@ export class IK_HingeConstraint implements IK_Constraint {
     //debug
 
     constructor(
-        private hingeAxis: Vector3,    // 转轴
-        private refDir: Vector3,       // 参考方向，用来定义0度
+        hingeAixs:'x'|'y'|'z',
         private min: number,           // 最小角度（弧度）
         private max: number,           // 最大角度（弧度）
-        private refParendDir = true    //父关节的方向就是参考方向
     ) {
-        this.hingeAxis.normalize();
-        //refDir一定与轴是垂直的
-        //TODO
-        if (!refDir)
-            this.refDir = new Vector3(0, 1, 0);
-        this.refDir.normalize();
-        this.hingeAxis.cloneTo(this.curHingeAxis);
-        this.refDir.cloneTo(this.curRefDir);
-        ClsInst.addInst(this);
-    }
-
-    setHingeAxisBySprite(sp: Sprite3D, axis: 'x' | 'y' | 'z') {
-        let wmat = sp.transform.worldMatrix.elements;
-        switch (axis) {
+        switch(hingeAixs){
             case 'x':
-                this.hingeAxis.setValue(wmat[0], wmat[1], wmat[2]).normalize();
+                this.hingeAxis = new Vector3(1,0,0);
                 break;
             case 'y':
-                this.hingeAxis.setValue(wmat[4], wmat[5], wmat[6]).normalize();
+                this.hingeAxis = new Vector3(0,1,0);
                 break;
             default:
-                this.hingeAxis.setValue(wmat[8], wmat[9], wmat[10]).normalize();
-                break;
+                this.hingeAxis = new Vector3(0,0,1);
         }
-        this.hingeAxis.cloneTo(this.curHingeAxis);
-    }
-
-    setQuat(q: Quaternion): void {
-        Vector3.transformQuat(this.hingeAxis, q, this.curHingeAxis);
-        if (!this.refParendDir)
-            Vector3.transformQuat(this.refDir, q, this.curRefDir);
+        //this.refDir.cloneTo(this.curRefDir);
+        ClsInst.addInst(this);
     }
 
     init(joint: IK_Joint): void {
         //TODO
-        if (joint.parent) {
-            joint.parent.worldVecToLocal(this.hingeAxis);
-            joint.parent.worldVecToLocal(this.refDir);
-        }
+        // if (joint.parent) {
+        //     joint.parent.worldVecToLocal(this.hingeAxis);
+        // }
     }
 
     /**
@@ -182,6 +196,7 @@ export class IK_HingeConstraint implements IK_Constraint {
             throw "joint.angleLimit!=this";
         }
         let parent = joint.parent;
+        //这里用chain空间的即可。
         let parentRot:Quaternion;
         if(!parent){
             //TODO 没有parent的处理 
@@ -238,6 +253,50 @@ export class IK_HingeConstraint implements IK_Constraint {
         return true;
     }
 
+    toTarget(joint:IK_Joint, targetPos:Vector3,endPos:Vector3, outQuat:Quaternion):Quaternion{
+        if(joint.angleLimit!=this){
+            throw "joint.angleLimit!=this";
+        }
+        let parent = joint.parent;
+        let parentRot:Quaternion;
+        if(!parent){
+            //TODO 没有parent的处理 
+            quatI.identity();
+            parentRot = quatI;
+        }else{
+            parentRot = parent.rotationQuat;
+        }
+
+        //轴
+        let curAxis = v2;
+        Vector3.transformQuat(this.hingeAxis,parentRot,curAxis);
+        curAxis.normalize();
+
+        //朝向：0方向
+        let boneDir = v1;
+        Vector3.transformQuat(Z,joint.rotationQuat,boneDir);
+
+        let endAng = getVecAngInPlane(joint.position,curAxis,boneDir,endPos);
+        //TODO 优化，内部有axis和dir的投影，不用都做
+        let targetAng = getVecAngInPlane(joint.position,curAxis,boneDir,targetPos);
+
+        if(targetAng>this.max){
+            targetAng = this.max;
+        }
+        if(targetAng<this.min){
+            targetAng=this.min;
+        }
+
+        //调整当前joint的朝向
+        Quaternion.createFromAxisAngle(curAxis,targetAng,joint.rotationQuat)
+
+        //返回delta
+        let dAng = targetAng-endAng;
+        outQuat = outQuat||new Quaternion();
+        Quaternion.createFromAxisAngle(curAxis,dAng,outQuat);
+        return outQuat;
+    }
+
     /**
      * 把vector分解出一个与合页轴垂直的方向分量
      * @param vector 
@@ -272,19 +331,13 @@ export class IK_HingeConstraint implements IK_Constraint {
         return angle;
     }
 
-    visualize(line: PixelLineSprite3D, joint: IK_Joint) {
+    visualize(line: PixelLineSprite3D, joint: IK_Joint, space:IK_Space) {
         //位置在当前joint上,但是空间是parent的
-        let parent = joint.parent;
-        if(!parent){
-            console.log('TODO parent 为空的处理');
-            //TODO 实际不能用单位四元数
-            quatI.identity();
-        }
-        let jointDir = parent?parent.rotationQuat:quatI
-        let ori = joint.position;
+        let jointDir = space.toWorldRot(getJointParentRot(joint));
+        let ori = space.toWorldPos(joint.position);
         let length=0.5;
-        Vector3.transformQuat(this.hingeAxis, jointDir, _visualAxis);
-        Vector3.transformQuat(this.refDir, jointDir, _visualRefDir);
+        Vector3.transformQuat( this.hingeAxis, jointDir, _visualAxis);
+        Vector3.transformQuat( this.refDir, jointDir, _visualRefDir);
         _visualAxis.normalize();
         _visualRefDir.normalize();
 
@@ -351,12 +404,6 @@ export class IK_BallConstraint implements IK_Constraint {
         ClsInst.addInst(this);
     }
 
-    setQuat(q: Quaternion): void {
-        if (!this.refParendDir)
-            Vector3.transformQuat(this.axis, q, this.curAxis);
-        //else 直接计算
-    }
-
     init(joint: IK_Joint): void {
 
     }
@@ -413,6 +460,10 @@ export class IK_BallConstraint implements IK_Constraint {
         return true;
     }
 
+    toTarget(joint:IK_Joint, targetPos:Vector3,endPos:Vector3, outQuat:Quaternion):Quaternion{
+        return null;
+    }    
+
     visualize(line: PixelLineSprite3D, joint: IK_Joint) {
 
     }
@@ -424,8 +475,6 @@ export class IK_FixConstraint implements IK_Constraint {
     
     constructor(){
         ClsInst.addInst(this);
-    }
-    setQuat(q: Quaternion): void {
     }
 
     init(joint: IK_Joint): void {
@@ -448,6 +497,10 @@ export class IK_FixConstraint implements IK_Constraint {
         curEnd.vsub(oriEnd, dpos);
         return true;
     }
+
+    toTarget(joint:IK_Joint, targetPos:Vector3,endPos:Vector3, outQuat:Quaternion):Quaternion{
+        return null;
+    }    
 
     visualize(line: PixelLineSprite3D, joint: IK_Joint) {
 

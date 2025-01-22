@@ -21,6 +21,9 @@ export class IK_CCDSolver implements IK_ISolver {
         const endEffector = chain.end_effector;
         let iteration = 0;
 
+        //先把target转到chain空间
+        let localTarget = chain.toChainSpace(target.pos)
+
         const toEndEffector = new Vector3();
         const toTarget = new Vector3();
         let rotation = new Quaternion();
@@ -36,7 +39,7 @@ export class IK_CCDSolver implements IK_ISolver {
 
                 toEndEffector.normalize();
 
-                target.pos.vsub(joint.position,toTarget);
+                localTarget.vsub(joint.position,toTarget);
                 toTarget.normalize();
                 //得到一个相对旋转，用来调整末端
                 rotationTo(toEndEffector, toTarget, rotation);
@@ -44,7 +47,7 @@ export class IK_CCDSolver implements IK_ISolver {
                 chain.rotateJoint(i,rotation);
             }
 
-            if (Vector3.distanceSquared(endEffector.position, target.pos) < this.epsilon * this.epsilon) {
+            if (Vector3.distanceSquared(endEffector.position, localTarget) < this.epsilon * this.epsilon) {
                 break;
             }
 
@@ -66,6 +69,50 @@ export class IK_CCDSolver implements IK_ISolver {
         //     }
         //     curJoint.rotationQuat = curRot;
         // }        
+    }
+
+    async solveWithConstraint(chain: IK_Chain, target: IK_Target) {
+        const endEffector = chain.end_effector;
+        let iteration = 0;
+
+        const toEndEffector = new Vector3();
+        const toTarget = new Vector3();
+        let rotation = new Quaternion();
+        while (iteration < this.maxIterations) {
+            //从末端开始
+            for (let i = chain.joints.length - 1; i >= 0; i--) {
+                const joint = chain.joints[i];
+
+                endEffector.position.vsub(joint.position, toEndEffector);
+                if(toEndEffector.lengthSquared()<1e-5) 
+                    //endeffector和joint重合的情况
+                    continue;
+
+                toEndEffector.normalize();
+
+                target.pos.vsub(joint.position,toTarget);
+                toTarget.normalize();
+                if(joint.angleLimit){
+                    let outQuat = new Quaternion();
+                    joint.angleLimit.toTarget(joint,target.pos, endEffector.position, outQuat);
+                    //调整当前joint的朝向：约束内部做了
+                    //调整其他的
+                    chain.rotateJoint(i,outQuat);
+
+                }else{
+                    //得到一个相对旋转，用来调整末端
+                    rotationTo(toEndEffector, toTarget, rotation);
+                    //更新朝向
+                    chain.rotateJoint(i,rotation);
+                }
+            }
+
+            if (Vector3.distanceSquared(endEffector.position, target.pos) < this.epsilon * this.epsilon) {
+                break;
+            }
+
+            iteration++;
+        }
     }
 
 }
