@@ -1,3 +1,4 @@
+import { Quaternion } from "../../maths/Quaternion";
 import { Vector3 } from "../../maths/Vector3";
 import { MMDBone } from "./mmdToLaya";
 
