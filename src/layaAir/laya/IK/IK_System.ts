@@ -92,9 +92,9 @@ export class IK_System implements IK_IJointManager{
         }
         if(b){
             //先画坐标轴
-            this._visualSp.addLine(new Vector3, new Vector3(10,0,0),Color.RED,Color.RED);
-            this._visualSp.addLine(new Vector3, new Vector3(0,10,0),Color.GREEN,Color.GREEN);
-            this._visualSp.addLine(new Vector3, new Vector3(0,0,10),Color.BLUE,Color.BLUE);
+            // this._visualSp.addLine(new Vector3, new Vector3(10,0,0),Color.RED,Color.RED);
+            // this._visualSp.addLine(new Vector3, new Vector3(0,10,0),Color.GREEN,Color.GREEN);
+            // this._visualSp.addLine(new Vector3, new Vector3(0,0,10),Color.BLUE,Color.BLUE);
         
             for(let chain of this.chains){
                 chain.visualize(this._visualSp);

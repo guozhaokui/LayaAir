@@ -9,7 +9,7 @@ import { IK_IJointManager } from "./IK_IJointManager";
 import { IK_Joint } from "./IK_Joint";
 import { IK_Pose1, IK_Target } from "./IK_Pose1";
 import { IK_Space } from "./IK_Space";
-import { ClsInst, rotationTo } from "./IK_Utils";
+import { ClsInst, isCollinear, rotationTo } from "./IK_Utils";
 
 const Z = new Vector3(0, 0, 1);
 let dpos = new Vector3();
@@ -42,6 +42,8 @@ export class IK_Chain extends IK_Pose1 {
     //构造的时候的位置，以后的位置都是相对这个做偏移
     private _lastPos = new Vector3();
 
+    totalLength=0;
+
     constructor(jointMgr?:IK_IJointManager) {
         super();
         ClsInst.addInst(this);
@@ -66,8 +68,9 @@ export class IK_Chain extends IK_Pose1 {
         }
 
         if(this._jointMgr && this._jointMgr.getJoint(joint.name)){
-            if(!this._jointMgr.getJoint(joint.name).isEnd)
-                throw '已经有关节控制这个骨骼了！！'
+            if(!this._jointMgr.getJoint(joint.name).isEnd){
+                //throw '已经有关节控制这个骨骼了！！'
+            }
         }else{
             this._jointMgr.addJoint(joint.name,joint)
         }
@@ -120,6 +123,10 @@ export class IK_Chain extends IK_Pose1 {
         }
     }
 
+    getJoint(name:string){
+        return this.joints.find((v:IK_Joint)=>v.name==name);
+    }
+
     setConstraint(def:{[key:string]:IK_Constraint}){
         for(let joint of this.joints){
             if(def[joint.name]){
@@ -127,6 +134,26 @@ export class IK_Chain extends IK_Pose1 {
             }
         }
     }
+
+    //所有的关节是否与目标点共线
+    isCollinear(target: Vector3, epsilon= 1e-5): boolean {
+        let joints = this.joints;
+        if (joints.length < 2) return false;
+        
+        // 获取链条的起点和终点
+        const start = joints[0].position;
+        const end = joints[joints.length - 1].position;
+        
+        // 检查每个中间关节是否与起点和终点共线
+        for (let i = 1; i < joints.length - 1; i++) {
+            if (!isCollinear(start, joints[i].position, end, epsilon)) {
+                return false;
+            }
+        }
+        
+        // 检查目标点是否与链条共线
+        return isCollinear(start, end, target, epsilon);
+    }    
 
     visualize(line:PixelLineSprite3D){
         //目标
@@ -178,8 +205,10 @@ export class IK_Chain extends IK_Pose1 {
         //计算每个joint的相对于bone的旋转偏移
         let joincnt = this.joints.length;
         let lastJointZ = new Vector3();
+        let length = 0;
         for(let i=0; i<joincnt-1; i++){
             let curJoint = this.joints[i];
+            length += curJoint.length;
             let nextJoint = this.joints[i+1];
             let curnode = curJoint.userData.bone;
             let curBoneZ:Vector3;
@@ -202,6 +231,7 @@ export class IK_Chain extends IK_Pose1 {
                 limit.init(curJoint);
             }
         }
+        this.totalLength = length;
     }
 
     //附加一个末端。

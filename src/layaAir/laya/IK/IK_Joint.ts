@@ -41,6 +41,9 @@ export class IK_Joint {
     left = X;
     isEnd=false;
 
+    //共线的处理
+    onCollinear:(joint:IK_Joint,i:number)=>void;
+
     constructor(bone?:Sprite3D) {
         //debug
         ClsInst.addInst(this);

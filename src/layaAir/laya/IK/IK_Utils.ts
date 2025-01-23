@@ -86,6 +86,20 @@ class ConstrainedRotation {
     }
 }
 
+/**
+ * 判断3点共线
+ */
+let dv1 = new Vector3();
+let dv2 = new Vector3();
+export function isCollinear(p1: Vector3, p2: Vector3, p3: Vector3, epsilon: number = 1e-6): boolean {
+    const v1 = p2.vsub(p1,dv1).normalize();
+    const v2 = p3.vsub(p1,dv2).normalize();
+    
+    // 如果点积的绝对值接近1，则三点共线
+    const dot = Math.abs(v1.dot(v2));
+    return Math.abs(dot - 1) < epsilon;
+}
+
 export class ClsInst{
     static map = new Map<string,any[]>();
     static addInst(obj:any){

@@ -30,7 +30,7 @@ export class IK_FABRIK_Solver implements IK_ISolver {
     async solve(chain: IK_Chain, target: IK_Target, dbgline:PixelLineSprite3D) {
         dbg = dbgline;
         const joints = chain.joints;
-        const totalLength = this.getTotalLength(joints);
+        const totalLength = chain.totalLength;
         const targetPos = target.pos;
         const basePos = joints[0].position.clone();
 
@@ -88,14 +88,6 @@ export class IK_FABRIK_Solver implements IK_ISolver {
         //调整完位置,最后再计算朝向.上面在约束的时候可能已经求解了,但是有的可能没有约束,所以,这里再算一遍
         // 并且前面是迭代计算,会导致不合理的四元数
         chain.updateRotations();
-    }
-
-    private getTotalLength(joints: IK_Joint[]): number {
-        let length = 0;
-        for (let i = 0; i < joints.length - 1; i++) {
-            length += joints[i].length;
-        }
-        return length;
     }
 
     private stretchToTarget(chain: IK_Chain, targetPos: Vector3): void {

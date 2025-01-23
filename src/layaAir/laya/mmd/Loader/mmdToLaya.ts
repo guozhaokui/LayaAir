@@ -363,6 +363,10 @@ export class MMDSprite extends Sprite3D{
         return this.skeleton.sprites.find(v=>v.name==name);
     }
 
+    hideMesh(){
+        this.renderSprite.active=false;
+    }
+
     private _getBonePath(sp:Node, rootname:string,out:string[]){
         out.splice(0,0,sp.name);
         if(sp.name==rootname)

@@ -5,6 +5,8 @@ import { IK_ISolver } from "../IK_ISolver";
 import { IK_Target } from "../IK_Pose1";
 import {ClsInst, rotationTo} from "../IK_Utils"
 
+var dpos = new Vector3();
+
 export class IK_CCDSolver implements IK_ISolver {
     static clsid = '2f0b2565-ebee-49bf-9e2b-88d68d4fc8f5'
     maxIterations: number;
@@ -23,11 +25,26 @@ export class IK_CCDSolver implements IK_ISolver {
         const toEndEffector = new Vector3();
         const toTarget = new Vector3();
         let rotation = new Quaternion();
-        while (iteration < this.maxIterations) {
-            //从末端开始
+        const targetPos = target.pos;
+        const basePos = chain.joints[0].position;
+
+        targetPos.vsub(basePos, dpos);
+        let baseToTarget = dpos.length();
+
+        let dist = 0;
+        // 直线检测相关
+        if(chain.isCollinear(targetPos) ){//&& baseToTarget<chain.totalLength){
+            console.log('ccccc')
             for (let i = chain.joints.length - 1; i >= 0; i--) {
                 const joint = chain.joints[i];
-
+                joint.onCollinear?.(joint,i);
+            }
+            return;
+        }
+        while (iteration < this.maxIterations) {
+            //从末端开始 -2 是因为规定最后一个是end
+            for (let i = chain.joints.length - 2; i >= 0; i--) {
+                const joint = chain.joints[i];
                 endEffector.position.vsub(joint.position, toEndEffector);
                 if(toEndEffector.lengthSquared()<1e-5) 
                     //endeffector和joint重合的情况
@@ -43,10 +60,9 @@ export class IK_CCDSolver implements IK_ISolver {
                 chain.rotateJoint(i,rotation);
             }
 
-            if (Vector3.distanceSquared(endEffector.position, target.pos) < this.epsilon * this.epsilon) {
+            if ((dist = Vector3.distanceSquared(endEffector.position, target.pos)) < this.epsilon * this.epsilon) {
                 break;
             }
-
             iteration++;
         }
 
