@@ -39,6 +39,7 @@ export class IK_Joint {
     userData = new IK_JointUserData();
     front = Z;
     left = X;
+    isEnd=false;
 
     constructor(bone?:Sprite3D) {
         //debug
@@ -76,16 +77,16 @@ export class IK_Joint {
         return this._angleLimit;
     }
 
-    visualize(line:PixelLineSprite3D, space:IK_Space){
+    visualize(line:PixelLineSprite3D){
         //画出left 临时
         let left = this.left;
         let newLeft = new Vector3();
-        Vector3.transformQuat(left, space.toWorldRot(this.rotationQuat), newLeft);
-        let worldPos = space.toWorldPos(this.position);
+        Vector3.transformQuat(left, this.rotationQuat, newLeft);
+        let worldPos = this.position;
         line.addLine( worldPos, worldPos.vadd(newLeft,newLeft), Color.RED, Color.RED);
 
         if(this.angleLimit){
-            this.angleLimit.visualize(line,this,space);
+            this.angleLimit.visualize(line,this);
         }
     }
 

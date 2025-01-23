@@ -85,7 +85,7 @@ export interface IK_Constraint {
 
     init(joint: IK_Joint): void;
 
-    visualize(line: PixelLineSprite3D, joint: IK_Joint, space:IK_Space): void;
+    visualize(line: PixelLineSprite3D, joint: IK_Joint): void;
 
     //给CCD用的，在有约束的情况下调整自己朝向目标
     toTarget(joint:IK_Joint, targetPos:Vector3,endPos:Vector3, outQuat:Quaternion):Quaternion;
@@ -331,10 +331,10 @@ export class IK_HingeConstraint implements IK_Constraint {
         return angle;
     }
 
-    visualize(line: PixelLineSprite3D, joint: IK_Joint, space:IK_Space) {
+    visualize(line: PixelLineSprite3D, joint: IK_Joint) {
         //位置在当前joint上,但是空间是parent的
-        let jointDir = space.toWorldRot(getJointParentRot(joint));
-        let ori = space.toWorldPos(joint.position);
+        let jointDir = getJointParentRot(joint);
+        let ori = joint.position;
         let length=0.5;
         Vector3.transformQuat( this.hingeAxis, jointDir, _visualAxis);
         Vector3.transformQuat( this.refDir, jointDir, _visualRefDir);

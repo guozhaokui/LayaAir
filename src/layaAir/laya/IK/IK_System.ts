@@ -19,6 +19,7 @@ import { Scene3D } from "../d3/core/scene/Scene3D";
 import { Laya } from "../../Laya";
 import { Mesh } from "../d3/resource/models/Mesh";
 import { IK_Constraint } from "./IK_Constraint";
+import { IK_IJointManager } from "./IK_IJointManager";
 
 function createMeshSprite(mesh:Mesh,color:Color){
     let sp3 = new Sprite3D();
@@ -37,7 +38,7 @@ class ChainSlot{
 }
 
 //一个可以整体移动的系统，例如一个人身上的多个链
-export class IK_System{
+export class IK_System implements IK_IJointManager{
     static clsid = 'e7c05dbd-3a55-4f8a-a74b-1bb56162ca76'
     private solver: IK_ISolver;
     private chains: IK_Chain[] = [];
@@ -48,12 +49,22 @@ export class IK_System{
     private _scene:Scene3D;
     private _updating=false;
     private _boneConstraint:{[key:string]:IK_Constraint}=null;
+    //名字到joint的映射，可以避免多个joint控制一个骨骼，也可以用来查找joint，确定链接关系
+    //例如找parent
+    private _mapBoneJoint:{[key:string]:IK_Joint}={}
 
     constructor(scene:Scene3D) {
         this.solver = new IK_CCDSolver();
         //this.solver = new IK_FABRIK_Solver();
         this._scene = scene;
         ClsInst.addInst(this);
+    }
+    
+    getJoint(name: string): IK_Joint {
+        return this._mapBoneJoint[name];
+    }
+    addJoint(name: string, joint: IK_Joint): void {
+        this._mapBoneJoint[name]=joint;
     }
 
     setRoot(r:Sprite3D){
@@ -188,7 +199,7 @@ export class IK_System{
             console.error(`没有找到骨骼:${name}或者长度不足${length}`)
             return null;
         }
-        let chain = new IK_Chain();
+        let chain = new IK_Chain(this);
         chain.name = name;
         
         //创建chain
@@ -254,7 +265,7 @@ export class IK_System{
     private _solveSimpleChain(chain:IK_Chain,target:IK_Target){
         let base = chain.joints[0];
         let end = chain.joints[1];
-        let parent = base.userData.bone||chain.attachBone;
+        //let parent = base.userData.bone||chain.attachBone;
         //这种的只能朝向
         let dir = new Vector3();
         //end.position.vsub(base.position,dir);
@@ -339,7 +350,7 @@ export class IK_System{
             // tpos.cloneTo(target.pos);
             // target.pos.setValue(0,0.8,0);
             //debug
-            chain.updateBoneAnim();
+            chain.updateAnim();
             let p = this.solve(chain,target);
             delaySolves.push(p);
             //应用ik结果.注意必须在一帧之内,所以上面不能有await,否则会延迟到下一帧,然后被动画覆盖

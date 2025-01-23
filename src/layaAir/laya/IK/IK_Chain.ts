@@ -5,6 +5,7 @@ import { Quaternion } from "../maths/Quaternion";
 import { Vector3 } from "../maths/Vector3";
 import { IK_Constraint } from "./IK_Constraint";
 import { IK_EndEffector } from "./IK_EndEffector";
+import { IK_IJointManager } from "./IK_IJointManager";
 import { IK_Joint } from "./IK_Joint";
 import { IK_Pose1, IK_Target } from "./IK_Pose1";
 import { IK_Space } from "./IK_Space";
@@ -12,7 +13,10 @@ import { ClsInst, rotationTo } from "./IK_Utils";
 
 const Z = new Vector3(0, 0, 1);
 let dpos = new Vector3();
+let drot = new Quaternion();
 let v1 = new Vector3();
+const QuatI = new Quaternion();
+let invQ = new Quaternion();
 
 
 /**
@@ -26,23 +30,23 @@ export class IK_Chain extends IK_Pose1 {
     //先只支持单个末端执行器
     private _end_effector: IK_EndEffector;
     //根关节的初始姿态，用来做动画控制，下面的变量用来临时把世界空间转到chain空间
-    //chain空间是动画控制的，就是根骨骼空间
-    //这个空间的朝向最终其实会被ik修改
+    //一个位置在根关节，朝向与根的parent一致的骨骼。
+    //每次都会随着动画更新，通过计算delta来更新chain，这种方案不会有累积误差
     private _chainSpace:IK_Space = null;
-    //private _chainSpacePos = new Vector3();
-    //private _chainSpaceInvQuat = new Quaternion();
     //设置世界矩阵或者修改某个joint的时候更新。0表示需要全部更新
     //private _dirtyIndex = 0;
     private _showDbg = false;
     private _target:IK_Target=null;
+    private _jointMgr:IK_IJointManager=null;
 
     //构造的时候的位置，以后的位置都是相对这个做偏移
     private _lastPos = new Vector3();
 
-    constructor() {
+    constructor(jointMgr?:IK_IJointManager) {
         super();
         ClsInst.addInst(this);
         this.joints = [];
+        this._jointMgr = jointMgr;
     }
 
     //不可写
@@ -60,25 +64,34 @@ export class IK_Chain extends IK_Pose1 {
         if (this.end_effector) {
             throw '已经结束了'
         }
+
+        if(this._jointMgr && this._jointMgr.getJoint(joint.name)){
+            if(!this._jointMgr.getJoint(joint.name).isEnd)
+                throw '已经有关节控制这个骨骼了！！'
+        }else{
+            this._jointMgr.addJoint(joint.name,joint)
+        }
+
         //记录attach的初始姿态
         if(this.joints.length==0 && joint.userData.bone){
             let chainSpaceSprite = joint.userData.bone;
             let quat = (chainSpaceSprite.parent as Sprite3D)?.transform.rotation;
-            if(!quat) quat = new Quaternion();
+            //初始姿态。假设一个虚拟骨骼，位置在根节点，朝向与根的父一致
             this._chainSpace = new IK_Space(
                 chainSpaceSprite.transform.position,
-                quat
+                quat||new Quaternion
             )
         }
-
-        //先转到chain空间
-        this._chainSpace.toLocalPos(pos,pos);
 
         let lastJoint = this.joints[this.joints.length - 1];
         joint.position = new Vector3();
         if (!lastJoint) {
-//this._lastPos = pos.clone();
-            joint.rotationQuat = new Quaternion();  //第一个固定为单位旋转
+            //根关节
+            if(joint.userData.bone.parent && this._jointMgr){
+                let parentName = joint.userData.bone.parent.name;
+                let parentJoint = this._jointMgr.getJoint(parentName);
+                joint.parent = parentJoint;
+            }
             pos.cloneTo(joint.position);
         } else {
             if (isWorldPos) {
@@ -137,11 +150,11 @@ export class IK_Chain extends IK_Pose1 {
         let joints = this.joints;
         for(let i=0,n=joints.length; i<n; i++){
             let joint = joints[i];
-            joint.visualize(line,this._chainSpace);
+            joint.visualize(line);
             let next = joints[i+1];
             if(next){
-                line.addLine(this._chainSpace.toWorldPos(joint.position), 
-                    this._chainSpace.toWorldPos(next.position), 
+                line.addLine(joint.position, 
+                    next.position, 
                     new Color(1,0,0,1), new Color(0,1,0,1));
             }
         }
@@ -156,6 +169,7 @@ export class IK_Chain extends IK_Pose1 {
         }
         this._end_effector = new IK_EndEffector(joints[index]);
 
+        joints[index].isEnd=true;
         //设置结束，可以做一些预处理
         this.onLinkEnd();
     }
@@ -172,8 +186,6 @@ export class IK_Chain extends IK_Pose1 {
             if(curnode){
                 let wmat = curnode.transform.worldMatrix.elements;
                 curBoneZ = new Vector3(wmat[8],wmat[9],wmat[10]);
-                //下面要把这个转到chain空间
-                this._chainSpace.toLocalPos(curBoneZ, curBoneZ);
             }else{
                 curBoneZ = Z;
             }
@@ -219,10 +231,6 @@ export class IK_Chain extends IK_Pose1 {
         return this._showDbg;
     }
 
-    toChainSpace(pos:Vector3, localPos?:Vector3){
-        return this._chainSpace.toLocalPos(pos,localPos);
-    }
-
     /**
      * 设置根节点的位置
      * @param pos 
@@ -239,7 +247,7 @@ export class IK_Chain extends IK_Pose1 {
     }
 
     //应用一下骨骼的动画
-    updateBoneAnim2(){
+    updateAnim2(){
         if(!this.joints[0])return;
         let udata = this.joints[0].userData;
         let rootBone = udata.bone;
@@ -254,22 +262,53 @@ export class IK_Chain extends IK_Pose1 {
 
     private _lp = new Vector3();
     /**
-     * 根据attachBone来更新链
-     * 得到当前attachBone的全局姿态，根据记录的初始姿态得到一个delta，然后应用到chain上
      * 
      * @returns 
      */
-    updateBoneAnim(){
+    updateAnim(){
         if(!this.joints[0])return;
+        let lastSpace = this._chainSpace;
         let rootBone = this.joints[0].userData.bone;
-        let quat = (rootBone.parent as Sprite3D)?.transform.rotation;
-        rootBone.transform.position.cloneTo(this._chainSpace.pos);
-        //rootBone.transform.rotation.cloneTo(this._chainSpace.rot);
-        if(quat){
-          quat.cloneTo(this._chainSpace.rot)  
+        let curQuat = ((rootBone.parent as Sprite3D)?.transform.rotation)||QuatI;
+        let curPos = rootBone.transform.position;
+
+        let change = false;
+        lastSpace.rot.invert(invQ);
+        Quaternion.multiply(curQuat, invQ, drot);
+        if(drot.w<0.99){
+            //这个才算变化，更新last
+            curQuat.cloneTo(lastSpace.rot);
+            change = true;
         }else{
-            this._chainSpace.rot.identity();
+            //否则都算不变
+            drot.identity();
         }
+
+        curPos.vsub(lastSpace.pos,dpos);
+        if(dpos.length()>1e-5){
+            curPos.cloneTo(lastSpace.pos);
+            change = true;
+        }else{
+            dpos.setValue(0,0,0);
+        }
+
+        if(!change)
+            return;
+
+        //更新每个关节
+        let i=0;
+        for(let joint of this.joints){
+            if(i==0){
+                //避免误差导致持续偏移
+                //修改位置，并且下次使用这个修改的位置，会导致误差积累，所以根这里直接设置
+                curPos.cloneTo(joint.position);
+            }else{
+            }
+
+            //joint.position.vadd(dpos,joint.position);
+            i++;
+        }
+
     }
 
     applyIKResult(){
@@ -279,10 +318,8 @@ export class IK_Chain extends IK_Pose1 {
             let udata = joint.userData;
             let mod = udata.dbgModel;
             if(mod){
-                this._chainSpace.toWorldPos(joint.position, mod.transform.position)
-                //mod.transform.position = joint.position;
-                this._chainSpace.toWorldRot(joint.rotationQuat,mod.transform.rotation);
-                //mod.transform.rotation = joint.rotationQuat;
+                mod.transform.position = joint.position;
+                mod.transform.rotation = joint.rotationQuat;
             }
 
             if(!bone) continue;
@@ -293,8 +330,7 @@ export class IK_Chain extends IK_Pose1 {
                 let r = bone.transform.rotation;
                 Quaternion.multiply(rotOff,rot,r);
                 //转到世界空间
-                bone.transform.rotation = this._chainSpace.toWorldRot(r,bone.transform.rotation);
-                //bone.transform.rotation = r;
+                bone.transform.rotation = r;
             }else{
                 //bone.transform.rotation = rot;
             }

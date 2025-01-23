@@ -311,7 +311,7 @@ export class MMDSprite extends Sprite3D{
         this._meshFilter = meshSprite.addComponent(MeshFilter);
         this._render = meshSprite.addComponent(SkinnedMeshRenderer);        
         this.renderSprite = meshSprite;
-        //this.addChild(meshSprite);
+        this.addChild(meshSprite);
         let bones = mmdToSkeleton(data);
         this.skeleton = bones;
         this.addChild(bones.root);

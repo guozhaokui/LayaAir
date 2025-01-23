@@ -20,10 +20,6 @@ export class IK_CCDSolver implements IK_ISolver {
     async solve(chain: IK_Chain, target: IK_Target) {
         const endEffector = chain.end_effector;
         let iteration = 0;
-
-        //先把target转到chain空间
-        let localTarget = chain.toChainSpace(target.pos)
-
         const toEndEffector = new Vector3();
         const toTarget = new Vector3();
         let rotation = new Quaternion();
@@ -39,7 +35,7 @@ export class IK_CCDSolver implements IK_ISolver {
 
                 toEndEffector.normalize();
 
-                localTarget.vsub(joint.position,toTarget);
+                target.pos.vsub(joint.position,toTarget);
                 toTarget.normalize();
                 //得到一个相对旋转，用来调整末端
                 rotationTo(toEndEffector, toTarget, rotation);
@@ -47,7 +43,7 @@ export class IK_CCDSolver implements IK_ISolver {
                 chain.rotateJoint(i,rotation);
             }
 
-            if (Vector3.distanceSquared(endEffector.position, localTarget) < this.epsilon * this.epsilon) {
+            if (Vector3.distanceSquared(endEffector.position, target.pos) < this.epsilon * this.epsilon) {
                 break;
             }
 
